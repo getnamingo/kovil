@@ -1,0 +1,131 @@
+{% extends request.ajax ? "layout_blank.html.twig" : "layout_default.html.twig" %}
+
+{% block meta_title %}{{ 'Email'|trans }}{% endblock %}
+
+{% block page_header %}
+    {{ email.subject }}
+{% endblock %}
+
+{% block page_actions %}
+    <a class="btn btn-icon btn-outline-secondary email-resend"
+       href="#"
+       data-id="{{ email.id }}"
+       aria-label="{{ 'Resend'|trans }}"
+       title="{{ 'Resend'|trans }}">
+        <i class="ti ti-refresh icon" aria-hidden="true"></i>
+    </a>
+
+    <a class="btn btn-icon btn-outline-danger email-delete"
+       href="#"
+       data-id="{{ email.id }}"
+       aria-label="{{ 'Delete'|trans }}"
+       title="{{ 'Delete'|trans }}">
+        <i class="ti ti-trash icon" aria-hidden="true"></i>
+    </a>
+{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item" aria-current="page"><a href="{{ 'email'|url }}">{{ 'Emails'|trans }}</a></li>
+<li class="breadcrumb-item active" aria-current="page">{{ email.subject }}</li>
+{% endblock %}
+{% block body_class %}email-email{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="d-flex flex-column gap-1">
+                    <div>
+                        <span class="text-secondary me-2">{{ 'From'|trans }}</span>
+                        {{ email.sender }}
+                    </div>
+                    <div>
+                        <span class="text-secondary me-2">{{ 'To'|trans }}</span>
+                        {{ email.recipients }}
+                    </div>
+                    <div class="small text-secondary mt-2">
+                        {{ email.created_at|format_date }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-body border-top">
+                <iframe class="ratio ratio-1x1 email"
+                        id="email-content"
+                        src="about:blank"
+                        sandbox="allow-popups"
+                        style="height: 30em"></iframe>
+                <script>
+                    (function () {
+                        const frame = document.getElementById("email-content");
+                        frame.srcdoc = '{{ email.content_html|e('js') }}';
+                    })();
+                </script>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block js %}
+{% autoescape "js" %}
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const resendEmailBtn = document.querySelectorAll('.email-resend');
+        const deleteEmailBtn = document.querySelectorAll('.email-delete');
+
+        resendEmailBtn.forEach((resendBtn) => {
+            resendBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                toggleLoader();
+                FOSSBilling.api.client.post('email/resend',
+                    {id: resendBtn.dataset.id },
+                    () => {
+                        flashMessage({
+                            message: 'Email resent',
+                            reload: '{{ 'email'|url }}'
+                        });
+                    },
+                    (res) => {
+                        FOSSBilling.message(`${res.message} (${res.code})`, 'error');
+                        toggleLoader();
+                    }
+                )
+            });
+        });
+
+        deleteEmailBtn.forEach((deleteBtn) => {
+            deleteBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (confirm('Are you sure?')) {
+                    toggleLoader();
+                    FOSSBilling.api.client.post('email/delete',
+                        {id: deleteBtn.dataset.id },
+                        () => {
+                            flashMessage({
+                                message: 'Email #'+ deleteBtn.dataset.id +' deleted',
+                                reload: '{{ 'email'|url }}'
+                            });
+                        },
+                        (res) => {
+                            FOSSBilling.message(`${res.message} (${res.code})`, 'error');
+                            toggleLoader();
+                        }
+                    )
+                }
+            });
+        });
+
+        const toggleLoader = () => {
+            let loader = document.querySelector('.wait');
+            if (loader.style.display === 'none') {
+                loader.style.display = 'block';
+            } else {
+                loader.style.display = 'none';
+            }
+        }
+    });
+</script>
+{% endautoescape %}
+{% endblock %}

@@ -1,0 +1,181 @@
+{% extends request.ajax ? "layout_blank.html.twig" : "layout_default.html.twig" %}
+{% set active_menu = 'services' %}
+
+{% import "macro_functions.html.twig" as mf %}
+
+{% block meta_title %}{{ 'My Services'|trans }}{% endblock %}
+
+{% block page_header %}
+    {{ 'Services'|trans }}
+{% endblock %}
+
+{% block page_description %}
+    {{ 'All of your orders are displayed here. Click on any service to get full information about it.'|trans }}
+{% endblock %}
+
+{% block page_actions %}
+    <a href="{{ '/order'|url }}" class="btn d-none d-sm-inline-block btn-primary">
+        <i class="ti ti-plus icon" aria-hidden="true"></i>
+        {{ 'New Order'|trans }}
+    </a>
+    <a href="{{ '/order'|url }}" class="btn btn-primary d-sm-none btn-icon" aria-label="{{ 'New Order'|trans }}">
+        <i class="ti ti-plus icon" aria-hidden="true"></i>
+    </a>
+{% endblock %}
+
+{% block body_class %}order-list{% endblock %}
+
+{% block breadcrumb %}
+    <li class="breadcrumb-item active" aria-current="page">{{ 'Services'|trans }}</li>
+{% endblock %}
+
+{% block content %}
+
+    {% set orders = client.order_get_list({
+        "per_page": 10,
+        "page": request.page,
+        "hide_addons": 1
+    }) %}
+
+    {% set has_idn_domains = false %}
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4">
+                {% if orders.list %}
+                    <div class="table-responsive">
+                        <table class="table table-vcenter card-table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{{ 'Product/Service'|trans }}</th>
+                                    <th>{{ 'Price'|trans }}</th>
+                                    <th>{{ 'Next Due Date'|trans }}</th>
+                                    <th>{{ 'Status'|trans }}</th>
+                                    <th class="text-end">{{ 'Actions'|trans }}</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                {% for i, order in orders.list %}
+
+                                    {% set service_title =
+                                        order.title starts with 'Domain '
+                                        and (
+                                            order.title ends with ' registration'
+                                            or order.title ends with ' transfer'
+                                        )
+                                        ? order.title|split(' ')[1]
+                                        : order.title
+                                    %}
+
+                                    {% set is_idn_domain = service_title|lower starts with 'xn--' or '.xn--' in service_title|lower %}
+                                    {% if is_idn_domain %}{% set has_idn_domains = true %}{% endif %}
+
+                                    <tr>
+                                        {# Service #}
+                                        <td{% if is_idn_domain %} data-order-domain-idn{% endif %}>
+                                            <a href="{{ "order/service/manage/#{order.id}"|url }}" class="text-primary fw-semibold">
+                                                {% if is_idn_domain %}<bdi data-domain-unicode>{{ service_title }}</bdi>{% else %}{{ service_title }}{% endif %}
+                                            </a>
+                                            {% if is_idn_domain %}
+                                                <small class="d-none text-secondary" style="display: block; font-size: 0.7rem;" dir="ltr" data-domain-ascii>{{ service_title }}</small>
+                                            {% endif %}
+                                        </td>
+
+                                        {# Price #}
+                                        <td class="text-nowrap">
+                                            <div class="fw-medium">
+                                                {{ order.total|format_currency(
+                                                    order.currency ?? default_currency
+                                                ) }}
+                                            </div>
+                                            {% if order.period %}
+                                                <div class="small text-muted">
+                                                    {{ order.period|period_title }}
+                                                </div>
+                                            {% endif %}
+                                        </td>
+
+                                        {# Next due date #}
+                                        <td class="text-nowrap">
+                                            {% if order.expires_at %}
+                                                <div>
+                                                    {{ order.expires_at|date('Y-m-d') }}
+                                                </div>
+                                                <div class="small text-muted">
+                                                    {{ order.expires_at|date('H:i:s') }}
+                                                </div>
+                                            {% else %}
+                                                <span class="text-muted">—</span>
+                                            {% endif %}
+                                        </td>
+
+                                        {# Status #}
+                                        <td>
+                                            {{ mf.status_badge(order.status, 'order') }}
+                                        </td>
+
+                                        {# Actions #}
+                                        <td class="text-end text-nowrap">
+                                            <a class="btn btn-icon btn-outline-primary" href="{{ "order/service/manage/#{order.id}"|url }}" title="{{ 'Manage'|trans }}" aria-label="{{ 'Manage'|trans }} {{ service_title }}">
+                                                <i class="ti ti-edit icon" aria-hidden="true"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {% if orders.pages > 1 %}
+                        <div class="card-footer d-flex justify-content-end">
+                            {{ include('partial_pagination.html.twig', {
+                                'list': orders,
+                                'url': 'order/service'
+                            }) }}
+                        </div>
+                    {% endif %}
+
+                {% else %}
+                    {{ include('partial_empty_state.html.twig', {
+                        'title': 'No orders yet'|trans,
+                        'description': 'You have not placed any orders yet.'|trans,
+                        'action_url': 'order'|url,
+                        'action_label': 'New Order'|trans
+                    }) }}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if has_idn_domains %}
+    <script src="{{ 'libs/punycode/punycode.js'|asset_url }}"></script>
+<script>
+(function () {
+    function showUnicodeDomains() {
+        document.querySelectorAll('[data-order-domain-idn]').forEach(function (element) {
+            const name = element.querySelector('[data-domain-unicode]');
+            const original = element.querySelector('[data-domain-ascii]');
+            const ascii = name.textContent.trim();
+            if (ascii.length > 253 || !/^[a-z0-9.-]+$/i.test(ascii)
+                || ascii.split('.').some(label => label.length > 63)) return;
+            try {
+                const unicode = window.domainxPunycode.toUnicode(ascii.toLowerCase());
+                if (unicode === ascii || new URL('https://' + unicode).hostname !== ascii.toLowerCase()) return;
+                name.textContent = unicode;
+                original.classList.remove('d-none');
+            } catch (_) {
+                // Keep the encoded name if conversion or library loading fails.
+            }
+        });
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', showUnicodeDomains, { once: true });
+    } else {
+        showUnicodeDomains();
+    }
+})();
+</script>
+    {% endif %}
+{% endblock %}

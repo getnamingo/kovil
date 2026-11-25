@@ -1,0 +1,241 @@
+{% extends request.ajax ? "layout_blank.html.twig" : "layout_default.html.twig" %}
+{% set active_menu = 'support' %}
+
+{% import "macro_functions.html.twig" as mf %}
+
+{% block meta_title %}{{ 'Support Tickets'|trans }}{% endblock %}
+{% block page_header %}{{ 'Support Tickets'|trans }}{% endblock %}
+{% block page_description %}
+    {{ 'Need an answer? We are here to help!'|trans }}
+{% endblock %}
+{% block page_actions %}
+    <button type="button" class="btn btn-primary d-none d-sm-inline-block text-nowrap"
+            data-open-dialog="#open-ticket-modal">
+        <i class="ti ti-plus icon" aria-hidden="true"></i>
+        {{ 'New Ticket'|trans }}
+    </button>
+    <button type="button" class="btn btn-icon btn-primary d-sm-none btn-icon text-nowrap"
+            data-open-dialog="#open-ticket-modal" aria-label="{{ 'New Ticket'|trans }}">
+        <i class="ti ti-plus icon" aria-hidden="true"></i>
+    </button>
+{% endblock %}
+
+{% block body_class %}support-tickets{% endblock %}
+
+{% block breadcrumb %}
+    <li class="breadcrumb-item active" aria-current="page">{{ 'Support Tickets'|trans }}</li>
+{% endblock %}
+
+{% block head %}
+    {{ wysiwyg('.editor-textarea') }}
+{% endblock %}
+
+{% block content %}
+
+    {% set tickets = client.support_ticket_get_list({
+        "per_page": 10,
+        "page": request.page,
+        "deep": 0,
+        "include_first": 0
+    }) %}
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4">
+                {% if tickets.list %}
+                    <div class="table-responsive">
+                        <table class="table table-vcenter card-table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{{ 'ID'|trans }}</th>
+                                    <th>{{ 'Subject'|trans }}</th>
+                                    <th>{{ 'Help Desk'|trans }}</th>
+                                    <th>{{ 'Status'|trans }}</th>
+                                    <th>{{ 'Submitted'|trans }}</th>
+                                    <th class="text-end">{{ 'Actions'|trans }}</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                {% for i, ticket in tickets.list %}
+                                    <tr>
+                                        {# Ticket ID #}
+                                        <td class="text-muted text-nowrap">
+                                            #{{ ticket.id }}
+                                        </td>
+
+                                        {# Subject #}
+                                        <td>
+                                            <a href="{{ "support/ticket/#{ticket.id}"|url }}" class="text-primary fw-semibold">
+                                                {{ ticket.subject|truncate(40) }}
+                                            </a>
+                                        </td>
+
+                                        {# Helpdesk #}
+                                        <td class="text-muted">
+                                            {{ ticket.helpdesk.name }}
+                                        </td>
+
+                                        {# Status #}
+                                        <td>
+                                            {{ mf.status_badge(ticket.status, 'ticket') }}
+                                        </td>
+
+                                        {# Submitted #}
+                                        <td class="text-nowrap">
+                                            <div>
+                                                {{ ticket.created_at|timeago }}
+                                                {{ 'ago'|trans }}
+                                            </div>
+
+                                            <div class="small text-muted">
+                                                {{ ticket.created_at|date('Y-m-d') }}
+                                            </div>
+                                        </td>
+
+                                        {# Actions #}
+                                        <td class="text-end text-nowrap">
+                                            {% if ticket.status == 'closed' %}
+                                                <a href="{{ "support/ticket/#{ticket.id}"|url }}" class="btn btn-icon btn-outline-secondary" title="{{ 'View'|trans }}" aria-label="{{ 'View'|trans }}">
+                                                    <i class="ti ti-eye icon" aria-hidden="true"></i>
+                                                </a>
+                                            {% else %}
+                                                <a href="{{ "support/ticket/#{ticket.id}"|url }}#reply-to" class="btn btn-icon btn-outline-primary" title="{{ 'Reply'|trans }}" aria-label="{{ 'Reply'|trans }}">
+                                                    <i class="ti ti-message-reply icon" aria-hidden="true"></i>
+                                                </a>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {% if tickets.pages > 1 %}
+                        <div class="card-footer d-flex justify-content-end">
+                            {{ include('partial_pagination.html.twig', {
+                                'list': tickets,
+                                'url': 'support'
+                            }) }}
+                        </div>
+                    {% endif %}
+
+                {% else %}
+                    {{ include('partial_empty_state.html.twig', {
+                        'title': 'No Support Tickets'|trans,
+                        'description': 'You have not submitted any support tickets yet.'|trans
+                    }) }}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <dialog
+        class="modal"
+        id="open-ticket-modal"
+       
+        aria-labelledby="open-ticket-modal-label"
+       
+    >
+        <div class="modal-dialog modal-lg">
+
+            <div class="modal-content">
+
+                <div class="modal-header">
+                    <h6 class="modal-title" id="open-ticket-modal-label">
+                        {{ 'Open New Ticket'|trans }}
+                    </h6>
+
+                    <button
+                        type="button"
+                        class="btn-close"
+                        data-close-dialog
+                        aria-label="{{ 'Close'|trans }}"
+                    ></button>
+                </div>
+
+                <form action="" method="post" id="ticket-submit" class="form" style="background: none">
+                    <div class="modal-body">
+
+                        <div class="mb-3">
+                            <label for="support-helpdesk-id" class="form-label">
+                                {{ 'Helpdesk'|trans }}
+                            </label>
+
+                            {{ mf.selectbox(
+                                'support_helpdesk_id',
+                                client.support_helpdesk_get_pairs,
+                                request.support_helpdesk_id,
+                                1
+                            ) }}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="subject" class="form-label">
+                                {{ 'Subject'|trans }}
+                            </label>
+
+                            <input type="text" name="subject" class="form-control" id="subject" required value="{{ request.subject|e }}">
+                        </div>
+
+                        {% if guest.support_kb_suggestions_enabled({ 'area': 'ticket' }) %}
+                            {{ include('mod_support_kb_suggestions.html.twig', {
+                                'input_id': 'subject'
+                            }) }}
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label for="message" class="form-label">
+                                {{ 'Message'|trans }}
+                            </label>
+
+                            <textarea name="content" class="editor-textarea form-control" id="message" rows="5" required>{{ request.content|e }}</textarea>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-link" data-close-dialog>
+                            {{ 'Cancel'|trans }}
+                        </button>
+
+                        <button type="submit" class="btn btn-primary">
+                            {{ 'Submit'|trans }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </dialog>
+{% endblock %}
+
+{% block js %}
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            let submitTicket = document.getElementById('ticket-submit');
+
+            submitTicket.addEventListener('submit', (event) => {
+                event.preventDefault();
+
+                FOSSBilling.api.client.post(
+                    'support/ticket_create',
+                    FOSSBilling.tools.serializeFormDataToObject(
+                        new FormData(submitTicket)
+                    ),
+                    (res) => {
+                        window.location = "{{ 'support/ticket'|url }}" + '/' + res
+                    },
+                    (res) => {
+                        FOSSBilling.message(
+                            `${res.message} (${res.code})`,
+                            'error'
+                        )
+                    }
+                );
+            });
+
+            {% if request.ticket %}
+                Kovil.showDialog(document.getElementById('open-ticket-modal'));
+            {% endif %}
+        });
+    </script>
+{% endblock %}

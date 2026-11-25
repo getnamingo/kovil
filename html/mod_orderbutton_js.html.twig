@@ -1,0 +1,83 @@
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        document.querySelectorAll('.accordion-body').forEach(accordionBody => {
+            accordionBody.addEventListener('kovil:expanded', function() {
+                const frame = document.getElementById('popup-iframe');
+                if (frame) frame.height = document.body.clientHeight;
+            });
+        });
+
+        document.getElementById('show-promo-field')?.addEventListener('click', function() {
+            document.getElementById('apply-promo').style.display = 'block';
+            this.style.display = 'none';
+            document.getElementById('promocode')?.focus();
+        });
+
+        document.querySelectorAll('.register-login a').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                Kovil.selectTab(this);
+            });
+        });
+
+    });
+
+    function onOrderCheckout(result){
+        if (result.invoice_hash) {
+            FOSSBilling.api.guest.post('invoice/payment', { hash: result.invoice_hash, gateway_id: result.gateway_id, auto_redirect: true },
+                (r) => {
+                    let checkoutEl = document.getElementById('checkout');
+                    let paymentHtmlEl = document.getElementById('payment-html');
+                    if (r.iframe) {
+                        document.getElementById('payment-html-inner').innerHTML = r.result;
+                        Kovil.setExpanded(checkoutEl, false);
+                        if (checkoutEl) {
+                            checkoutEl.remove();
+                        }
+                        Kovil.setExpanded(paymentHtmlEl, true);
+                    } else {
+                        const link = '{{ "invoice/banklink"|url }}' + '/' + result.invoice_hash + '/' + result.gateway_id;
+                        document.getElementById('payment-html-inner').innerHTML = '<a href="' + link + '" target="_parent" id="redirect-to-gateway">Redirect to Payment Gateway</a>';
+                        Kovil.setExpanded(checkoutEl, false);
+                        document.getElementById('checkout-inner').remove();
+                        Kovil.setExpanded(paymentHtmlEl, true);
+                        document.getElementById('redirect-to-gateway').click();
+                    }
+                });
+        } else {
+            window.top.location.href = ('{{ "order/service/manage"|url }}' + '/' + result.order_id);
+        }
+    }
+
+    function onLogin(result){
+        FOSSBilling.message("{{ 'You logged in successfully'|trans }}");
+        let registerEl = document.getElementById('register');
+        let checkoutEl = document.getElementById('checkout');
+        Kovil.setExpanded(registerEl, false);
+        document.querySelector("#checkoutButton").hidden = false;
+        document.querySelector("#loginMessage").hidden = true;
+        setTimeout(() => {
+            registerEl.parentElement.remove();
+            Kovil.setExpanded(checkoutEl, true);
+        }, 500);
+    }
+
+    function onAccountCreate(result){
+        const login_details = {
+            email: document.getElementById('reg-email').value,
+            password: document.getElementById('reg-password').value
+        };
+        FOSSBilling.api.guest.post('client/login', login_details,
+            () => {
+                FOSSBilling.message("{{ 'You logged in successfully'|trans }}");
+                let registerEl = document.getElementById('register');
+                Kovil.setExpanded(registerEl, false);
+                document.querySelector("#checkoutButton").hidden = false;
+                document.querySelector("#loginMessage").hidden = true;
+                setTimeout(() => {
+                    registerEl.parentElement.remove();
+                    Kovil.setExpanded(document.getElementById('checkout'), true);
+                    }, 500);
+            });
+    }
+</script>

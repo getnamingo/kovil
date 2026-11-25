@@ -1,0 +1,181 @@
+{% if order.status == 'active' %}
+<div class="card border-0 shadow-none">
+    <div class="card-body">
+      <div class="row row-cards mb-6">
+      {% set server = service.server %}
+      {% set hp = service.hosting_plan %}
+        <div class="col-12 col-lg-6 mb-3 mb-lg-0">
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">{{ 'Server'|trans }}</h2>
+            </div>
+            <div class="card-body">
+              <dl class="row">
+                <dt class="col-5">{{ 'Domain'|trans }}:</dt>
+                <dd class="col-7"><a href="https://{{ service.domain }}" target="_blank" rel="noopener noreferrer">{{ service.domain }}</a></dd>
+
+                <dt class="col-5">{{ 'Server IP'|trans }}:</dt>
+                <dd class="col-7">{{ server.ip }}</dd>
+
+                <dt class="col-5">{{ 'Server Hostname'|trans }}:</dt>
+                <dd class="col-7">{{ server.hostname }}</dd>
+
+                {% set nameservers = [
+                  server.ns1|default(''),
+                  server.ns2|default(''),
+                  server.ns3|default(''),
+                  server.ns4|default('')
+                ]|filter(ns => ns) %}
+                {% if nameservers %}
+                <dt class="col-5">{{ 'Nameservers'|trans }}:</dt>
+                <dd class="col-7">
+                  {% for ns in nameservers %}
+                  <div><code>{{ ns }}</code></div>
+                  {% endfor %}
+                </dd>
+                {% endif %}
+
+                <dt class="col-5">{{ 'Username'|trans }}:</dt>
+                <dd class="col-7">{{ service.username }}</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-lg-6">
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">{{ 'Hosting'|trans }} <span class="card-subtitle">{{ 'Created'|trans }}: {{ order.created_at|date('Y-m-d') }}</span></h2>
+            </div>
+            <div class="card-body">
+              <dl class="row">
+                <dt class="col-5">{{ 'Hosting Plan'|trans }}:</dt>
+                <dd class="col-7">{{ hp.name }}</dd>
+
+                <dt class="col-5">{{ 'Bandwidth'|trans }}:</dt>
+                <dd class="col-7">{% if hp.bandwidth == 'unlimited' %}{{ 'Unlimited'|trans }}{% else %}{{ hp.bandwidth }} MB / {{ 'per month'|trans }}{% endif %}</dd>
+
+                <dt class="col-5">{{ 'Disk Quota'|trans }}:</dt>
+                <dd class="col-7">{% if hp.quota == 'unlimited' %}{{ 'Unlimited'|trans }}{% else %}{{ hp.quota }} MB{% endif %}</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row row-cards mb-6">
+        <div class="col-12 d-flex justify-content-center gap-2">
+          {% if service.domain_order_id %}
+            <a class="btn btn-l btn-outline-primary" href='{{ "order/service/manage/#{service.domain_order_id}"|url }}'>{{ 'Manage Domain'|trans }}</a>
+          {% endif %}
+          <a class="btn btn-l btn-primary" href="{{ 'servicehosting/get_login_url'|api_url(query: { 'order_id':  order.id }) }}" {{ fb_api_link({callback: 'onAfterLoginLinkCreated'}) }}>{{ 'Login to Control Panel'|trans }}</a>
+        </div>
+      </div>
+        
+      <div class="row row-cards">
+          <div class="col-12 col-lg-4 mb-3 mb-lg-0">
+            <div class="card h-100">
+              <div class="card-header">
+                <div class="d-flex align-items-center justify-content-between w-100">
+                  <h3 class="card-title mb-0 d-flex align-items-center gap-2">
+                    <i class="ti ti-lock-password icon" aria-hidden="true"></i>
+                    {{ 'Change Control Panel Password'|trans }}
+                  </h3>
+                </div>
+              </div>
+
+              <div class="card-body">
+                <form action="{{ 'servicehosting/change_password'|api_url }}" method="post" {{ fb_api_form({message: 'Password Changed'|trans}) }} class="space-y">
+                  <div>
+                    <label class="form-label visually-hidden" for="password">{{ 'Password'|trans }}</label>
+                    <input type="password" placeholder="{{ 'Password'|trans }}" class="form-control" id="password" name="password" value="{{ request.password }}" required="required" autocomplete="new-password" />
+                  </div>
+                  <div>
+                    <label class="form-label visually-hidden" for="password-confirm">{{ 'Password Confirm'|trans }}</label>
+                    <input type="password" placeholder="{{ 'Password Confirm'|trans }}" class="form-control" id="password-confirm" name="password_confirm" value="{{ request.password_confirm }}" required="required" autocomplete="new-password" />
+                  </div>
+                  <input type="hidden" name="order_id" value="{{ order.id }}">
+                  <div class="mt-1 d-flex justify-content-end"><button type="submit" class="btn btn-outline-primary" value="{{ 'Change Password'|trans }}">{{ 'Change Password'|trans }}</button></div>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12 col-lg-4 mb-3 mb-lg-0">
+            <div class="card h-100">
+              <div class="card-header">
+                <div class="d-flex align-items-center justify-content-between w-100">
+                  <h3 class="card-title mb-0 d-flex align-items-center gap-2">
+                    <i class="ti ti-world icon" aria-hidden="true"></i>
+                    {{ 'Change Domain'|trans }}
+                  </h3>
+                </div>
+              </div>
+
+              <div class="card-body">
+                <form action="{{ 'servicehosting/change_domain'|api_url }}" method="post" {{ fb_api_form({message: 'Domain Name Changed'|trans}) }} class="space-y">
+                  <fieldset>
+                    <div class="mb-3">
+                      <label class="form-label">{{ 'New Domain'|trans }}:</label>
+
+                      <div class="d-flex gap-2">
+                        <input class="form-control flex-grow-1" type="text" name="sld" value="{{ request.domain|default(service.sld) }}" required>
+
+                        <input class="form-control" style="max-width:120px" type="text" name="tld" value="{{ request.domain|default(service.tld) }}" required>
+                      </div>
+                    </div>
+                    <input type="hidden" name="order_id" value="{{ order.id }}">
+                    <div class="control-group mt-1">
+                      <div class="controls d-flex justify-content-end">
+                        <button class="btn btn-outline-primary" type="submit" value="{{ 'Change Domain'|trans }}">{{ 'Change Domain'|trans }}</button>
+                      </div>
+                    </div>
+                  </fieldset>
+                </form>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-12 col-lg-4">
+            <div class="card h-100">
+              <div class="card-header">
+                <div class="d-flex align-items-center justify-content-between w-100">
+                  <h3 class="card-title mb-0 d-flex align-items-center gap-2">
+                    <i class="ti ti-user-cog icon" aria-hidden="true"></i>
+                    {{ 'Change Username'|trans }}
+                  </h3>
+                </div>
+              </div>
+
+              <div class="card-body">
+                <form method="post" action="{{ 'servicehosting/change_username'|api_url }}" {{ fb_api_form({message: 'Username Changed'|trans}) }} class="space-y">
+                  <fieldset>
+                    <div class="control-group">
+                      <label class="col-form-label" >{{ 'Username'|trans }}: </label>
+                      <div class="controls">
+                        <input class="form-control" type="text" name="username" value="{{ request.username|default(service.username) }}" required="required">
+                      </div>
+                    </div>
+
+                    <input type="hidden" name="order_id" value="{{ order.id }}">
+                    <div class="control-group mt-1">
+                      <div class="controls d-flex justify-content-end">
+                        <button class="btn btn-outline-primary" type="submit" value="{{ 'Change Username'|trans }}">{{ 'Change Username'|trans }}</button>
+                      </div>
+                    </div>
+                  </fieldset>
+                </form>
+              </div>
+            </div>
+          </div>
+      </div>
+    </div>
+</div>
+
+{% block js %}
+<script>
+    function onAfterLoginLinkCreated(url){
+        window.open(url, "_blank");
+    }
+</script>
+{% endblock %}
+{% endif %}

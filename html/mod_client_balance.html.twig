@@ -1,0 +1,167 @@
+{% extends request.ajax ? "layout_blank.html.twig" : "layout_default.html.twig" %}
+
+{% block meta_title %}{{ 'Wallet'|trans }}{% endblock %}
+
+{% block page_header %}
+    {{ 'Wallet'|trans }}
+{% endblock %}
+
+{% block page_description %}
+    {{ 'Here you can manage and track your account balance.'|trans }}
+{% endblock %}
+
+{% block page_actions %}
+<style>
+.wallet-amount {
+    width: 220px;
+}
+
+@media (max-width: 767.98px) {
+    .wallet-amount {
+        width: 165px;
+    }
+}
+</style>
+    {% if guest.invoice_funds_enabled %}
+        <form
+            method="post"
+            class="d-flex gap-2 align-items-center"
+            action="{{ 'invoice/funds_invoice'|api_url }}"
+            {{ fb_api_form({callback: 'onAfterInvoiceCreated'}) }}
+        >
+            <div class="input-group wallet-amount" style="max-width: 220px;">
+                <input
+                    id="appendedPrependedInput"
+                    class="form-control"
+                    type="text"
+                    name="amount"
+                    placeholder="0"
+                    inputmode="decimal"
+                    required
+                >
+
+                <span class="input-group-text">
+                    {{ profile.currency ?? default_currency }}
+                </span>
+            </div>
+
+            <button class="btn btn-primary d-none d-sm-inline-block text-nowrap" type="submit">
+                <i class="ti ti-plus icon" aria-hidden="true"></i>
+                {{ 'Add Funds'|trans }}
+            </button>
+            <button class="btn btn-primary d-sm-none btn-icon text-nowrap" type="submit" aria-label="{{ 'Add Funds'|trans }}">
+                <i class="ti ti-plus icon" aria-hidden="true"></i>
+            </button>
+        </form>
+    {% endif %}
+{% endblock %}
+
+{% block breadcrumb %}
+    <li class="breadcrumb-item active" aria-current="page">{{ 'Wallet'|trans }}</li>
+{% endblock %}
+
+{% set profile = client.profile_get %}
+
+{% block body_class %}client-balance{% endblock %}
+
+{% block content %}
+    {% set transactions = client.client_balance_get_list({
+        "per_page": 10,
+        "page": request.page
+    }) %}
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4">
+                {% if transactions.list %}
+                    <div class="table-responsive">
+                        <table class="table table-vcenter card-table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{{ 'Description'|trans }}</th>
+                                    <th>{{ 'Date'|trans }}</th>
+                                    <th class="text-end">{{ 'Amount'|trans }}</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                {% for i, tx in transactions.list %}
+                                    <tr>
+                                        {# Description #}
+                                        <td>
+                                            <span class="fw-medium">
+                                                {{ tx.description }}
+                                            </span>
+                                        </td>
+
+                                        {# Date #}
+                                        <td class="text-muted text-nowrap">
+                                            {{ tx.created_at|format_date }}
+                                        </td>
+
+                                        {# Amount #}
+                                        <td class="text-end text-nowrap">
+
+                                            <span class="fw-semibold
+                                                {% if tx.amount > 0 %}
+                                                    text-success
+                                                {% elseif tx.amount < 0 %}
+                                                    text-danger
+                                                {% endif %}
+                                            ">
+                                                {{ tx.amount|format_currency(
+                                                    tx.currency ?? default_currency
+                                                ) }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+
+                            <tfoot>
+                                <tr>
+                                    <td colspan="2" class="fw-medium">
+                                        {{ 'Total'|trans }}
+                                    </td>
+
+                                    <td class="text-end">
+                                        <span class="fw-bold">
+                                            {{ profile.balance|format_currency(
+                                                profile.currency ?? default_currency
+                                            ) }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            </tfoot>
+
+                        </table>
+                    </div>
+
+                    {% if transactions.pages > 1 %}
+                        <div class="card-footer d-flex justify-content-end">
+                            {{ include('partial_pagination.html.twig', {
+                                'list': transactions,
+                                'url': 'client/balance'
+                            }) }}
+                        </div>
+                    {% endif %}
+
+                {% else %}
+                    {{ include('partial_empty_state.html.twig', {
+                        'title': 'No transactions yet'|trans,
+                        'description': 'Your wallet transaction history is currently empty. Transactions will appear here once you add funds or make a payment.'
+                            |trans
+                    }) }}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block js %}
+<script>
+    function onAfterInvoiceCreated(hash) {
+        window.location = '{{ "invoice"|url }}/' + hash;
+    }
+</script>
+{% endblock %}

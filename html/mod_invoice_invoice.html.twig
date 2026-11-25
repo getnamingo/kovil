@@ -1,0 +1,254 @@
+{% extends request.ajax ? "layout_blank.html.twig" : "layout_default.html.twig" %}
+{% set active_menu = 'invoices' %}
+
+{% import "macro_functions.html.twig" as mf %}
+
+{% set nr = invoice.serie ~ "%05s"|format(invoice.nr) %}
+
+{% block meta_title %}{{ 'Invoice'|trans }} #{{ nr }}{% endblock %}
+
+{% block page_header %}
+    {{ 'Invoice'|trans }} #{{ nr }}
+{% endblock %}
+
+{% block page_description %}
+    {{ 'You can print this invoice or export it to a PDF file by clicking on the corresponding button.'|trans }}
+{% endblock %}
+
+{% block page_actions %}
+    <a href="{{ 'invoice/pdf'|url }}/{{ invoice.hash }}"
+       target="_blank"
+       rel="noopener"
+       class="btn btn-outline-primary d-none d-sm-inline-flex align-items-center text-nowrap">
+        <i class="ti ti-file-type-pdf icon" aria-hidden="true"></i>
+        {{ 'PDF'|trans }}
+    </a>
+    <a href="{{ 'invoice/pdf'|url }}/{{ invoice.hash }}"
+       target="_blank"
+       rel="noopener"
+       class="btn btn-outline-primary btn-icon d-sm-none"
+       aria-label="{{ 'PDF'|trans }}"
+       title="{{ 'PDF'|trans }}">
+        <i class="ti ti-file-type-pdf icon" aria-hidden="true"></i>
+    </a>
+
+    <button type="button" class="btn btn-outline-secondary d-none d-sm-inline-flex align-items-center text-nowrap" onclick="window.print()">
+        <i class="ti ti-printer icon" aria-hidden="true"></i>
+        {{ 'Print'|trans }}
+    </button>
+    <button type="button" class="btn btn-outline-secondary btn-icon d-sm-none" onclick="window.print()" aria-label="{{ 'Print'|trans }}" title="{{ 'Print'|trans }}">
+        <i class="ti ti-printer icon" aria-hidden="true"></i>
+    </button>
+{% endblock %}
+
+{% block body_class %}invoice-invoice{% endblock %}
+
+{% block breadcrumb %}
+    <li class="breadcrumb-item"><a href="{{ '/invoice'|url }}">{{ 'Invoices'|trans }}</a></li>
+    <li class="breadcrumb-item active" aria-current="page">#{{ nr }}</li>
+{% endblock %}
+
+{% block content %}
+{% set seller = invoice.seller %}
+{% set buyer = invoice.buyer %}
+{% set company = guest.system_company %}
+    {% if invoice.status == 'unpaid' %}
+    <div class="row mb-3 d-print-none">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header d-print-none">
+                    <h3 class="card-title">{{ 'Payment methods'|trans }} <span class="card-subtitle">{{ 'Please choose a payment type and pay for your chosen products.'|trans }}</span></h3>
+                </div>
+                <div class="card-body">
+                    <form action="{{ 'invoice/payment'|api_url(role='guest') }}" class="api-form" {{ fb_api_form({ redirect: ('invoice/'~invoice.hash)|url({ 'auto_redirect': 1 }) }) }}>
+                        <input type="hidden" name="hash" value="{{ invoice.hash }}"/>
+                        <div class="d-flex flex-wrap gap-3">
+                            {% for gtw in guest.invoice_gateways %}
+                                {% if invoice.currency in gtw.accepted_currencies %}
+                                <div class="invoice-gateway">
+                                    <button type="button" class="btn btn-outline-secondary gateway-button d-flex flex-column align-items-center justify-content-center gap-2 p-3"
+                                        data-title="{{ gtw.title }}" onclick="paymentPrompt('{{ gtw.id }}', {{ gtw.allow_recurrent ? 'true' : 'false' }}, this.dataset.title)">
+                                        <span style="display: block; background: transparent url('{{ gtw.logo.logo }}') no-repeat center center; background-size: contain; height: {{ gtw.logo.height }}; width: {{ gtw.logo.width }}; max-width: 100%;"></span>
+                                        <span class="text-wrap">{{ gtw.title }}</span>
+                                    </button>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                        <input type="hidden" name="gateway_id" id="gateway_id">
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card card-lg">
+              <div class="card-body">
+                <div class="mb-3">
+                {% if company.logo_url %}
+                  <img src="{{ company.logo_url }}" alt="Logo" style="max-height: 90px; width: auto;">
+                {% endif %}
+                </div>
+                <div class="row">
+                  <div class="col-6">
+                    <p class="h3">{{ 'Company'|trans }}</p>
+                    <address>
+                      {% if seller.company|trim %}{{ seller.company }}<br>{% endif %}
+                      {% if seller.company_vat|trim %}{{ seller.company_vat }}<br>{% endif %}
+                      {% if seller.address|trim %}{{ seller.address }}<br>{% endif %}
+                      {% if seller.phone|trim %}{{ seller.phone }}<br>{% endif %}
+                      {% if seller.email|trim %}{{ seller.email }}<br>{% endif %}
+                      {% if seller.account_number|trim %}{{ seller.account_number }}<br>{% endif %}
+                      {% if seller.note|default('')|trim %}{{ seller.note }}{% endif %}
+                    </address>
+                  </div>
+                  <div class="col-6 text-end">
+                    <p class="h3">{{ 'Client'|trans }}</p>
+                    <address>
+                      {% if buyer.first_name|trim or buyer.last_name|trim %}{{ buyer.first_name }} {{ buyer.last_name }}<br>{% endif %}
+                      {% if buyer.company|trim %}{{ buyer.company }}<br>{% endif %}
+                      {% if buyer.company_number|trim %}{{ buyer.company_number }}<br>{% endif %}
+                      {% if buyer.company_vat|trim %}{{ buyer.company_vat }}<br>{% endif %}
+                      {% if buyer.address|trim %}{{ buyer.address }}<br>{% endif %}
+                      {% if buyer.address|trim %}{{ buyer.city }}, {{ buyer.state }}<br>{% endif %}
+                      {% if buyer.address|trim %}{{ buyer.zip }}, {{ guest.system_countries[buyer.country] }}<br>{% endif %}
+                      {% if buyer.phone|trim %}{{ buyer.phone }}<br>{% endif %}
+                    </address>
+                  </div>
+                  <div class="col-6">
+                    <p class="h3">{{ 'Invoice Date'|trans }}: {% if invoice.paid_at|trim %} {{ invoice.paid_at|date("Y-m-d") }} {% else %} {{ invoice.created_at|date("Y-m-d") }} {% endif %}</p>
+                  </div>
+                  <div class="col-6 text-end">
+                    <p class="h3">{{ 'Due Date'|trans }}: {% if invoice.due_at|trim %} {{ invoice.due_at|date("Y-m-d") }} {% else %} ----- {% endif %}</p>
+                  </div>
+                  <div class="col-12 my-5">
+                    <h1>{{ 'Invoice'|trans }} #{{ nr }} <span class="badge {% if invoice.status == 'paid' %} bg-success text-success-fg{% elseif invoice.status == 'unpaid' %}bg-warning text-warning-fg{% endif %}">{{ mf.status_name(invoice.status)|title }}</span></h1>
+                  </div>
+                </div>
+                <table class="table table-transparent table-responsive">
+                  <thead>
+                    <tr>
+                      <th class="text-center" style="width: 1%">{{ '#'|trans }}</th>
+                      <th>{{ 'Title'|trans }}</th>
+                      <th>{{ 'Price'|trans }}</th>
+                      <th class="text-end" style="width: 1%">{{ 'Total'|trans }}</th>
+                    </tr>
+                  </thead>
+                  {% for i, item in invoice.lines %}
+                  <tr>
+                    <td>{{ i+1 }}</td>
+                    <td>
+                      {% if item.order_id %}
+                        <a href="{{ '/order/service'|url }}/manage/{{ item.order_id }}">{{ item.title }}</a>
+                      {% else %}
+                        {{ item.title }}
+                      {% endif %}
+                      {% if item.quantity > 1 %}
+                        x {{ item.quantity }} {{ item.unit }}
+                      {% endif %}
+                    </td>
+                    <td>{{ item.price|format_currency(invoice.currency ?? default_currency) }}</td>
+                    <td class="text-end">{{ item.total|format_currency(invoice.currency ?? default_currency) }}</td>
+                  </tr>
+                  {% endfor %}
+                
+                  {% if invoice.tax > 0 %}
+                  <tr>
+                    <td colspan="3" class="strong text-end">{{ invoice.taxname }} {{ invoice.taxrate }}%</td>
+                    <td class="text-end">{{ invoice.tax |format_currency(invoice.currency ?? default_currency) }}</td>
+                  </tr>
+                  {% endif %}
+                  {% if invoice.discount|default(0) > 0 %}
+                  <tr>
+                    <td colspan="3" class="strong text-end">{{ 'Discount'|trans }}</td>
+                    <td class="text-end">{{ invoice.discount |format_currency(invoice.currency ?? default_currency) }}</td>
+                  </tr>
+                  {% endif %}
+                  <tr>
+                    <td colspan="3" class="fw-bold text-uppercase text-end">{{ 'Total'|trans }}</td>
+                    <td class="fw-bold text-end">{{ invoice.total |format_currency(invoice.currency ?? default_currency) }}</td>
+                  </tr>
+                </table>
+                
+                {% if invoice.text_1 %}
+                    <p class="text-secondary text-center mt-5">{{ (invoice.text_1 ?? '')|markdown_to_html }}</p>
+                {% endif %}
+                {% if invoice.text_2 %}
+                    <p class="text-secondary text-center mt-5">{{ (invoice.text_2 ?? '')|markdown_to_html }}</p>
+                {% endif %}
+              </div>
+            </div>
+        </div>
+    </div>
+
+    <dialog class="modal modal-lg" id="paymentPrompt" aria-labelledby="paymentPromptLabel">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title" id="paymentPromptLabel"></h4>
+                    <button type="button" class="btn-close" data-close-dialog aria-label="{{ 'Close'|trans }}"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="bodyText"></p>
+                    <a href="#" class="btn btn-primary" id="single">{{ "Pay now with a one-time payment"|trans }}</a>
+                    <a href="#" class="btn btn-primary" id="subscription" hidden="true">{{ "Pay now and create a subscription"|trans }}</a>
+                    <a href="#" class="btn btn-primary" id="pay-nondescript" hidden="true">{{ "Pay now"|trans }}</a>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-close-dialog>{{ 'Cancel'|trans }}</button>
+                </div>
+            </div>
+        </div>
+    </dialog>
+{% endblock %}
+{% block js %}
+<script>
+    function paymentPrompt(id, supportsSubscription, title){
+        const invoiceHash = "{{ invoice.hash|e('js') }}";
+        const backLink    = "{{ 'invoice/banklink'|url }}";
+        const paymentLink = new URL(backLink.concat('/', encodeURIComponent(invoiceHash), '/', encodeURIComponent(id)));
+        const invoiceSubscribable = {{ invoice.subscribable ? 'true' : 'false' }};
+
+        {% set anyGatewayDoesSubscriptions = false %}
+        {% for gtw in guest.invoice_gateways %}
+            {% if gtw.allow_recurrent %}
+                {% set anyGatewayDoesSubscriptions = true %}
+            {% endif %}
+        {% endfor %}
+
+        const canAnyGatewayDoSubs = {{ anyGatewayDoesSubscriptions ? 'true' : 'false' }};
+
+        {% if settings.prompt_subscription|default('0') %}
+            if(supportsSubscription && invoiceSubscribable){
+                document.getElementById('bodyText').textContent = `{{ 'The invoice you are paying and your chosen payment gateway both support subscription payments. What type of payment would you like to continue with?'|trans }}`;
+                document.getElementById('subscription').hidden = false;
+            } else if (!invoiceSubscribable) {
+                document.getElementById('bodyText').textContent = `{{ 'If you are happy with the selected payment gateway, please use the button below to continue with it.'|trans }}`;
+                document.getElementById('subscription').hidden = true;
+            } else {
+                if(canAnyGatewayDoSubs){
+                    document.getElementById('bodyText').textContent = `{{ 'If you are happy with the selected payment gateway, please use the button below to continue with it. Optionally, you may choose a different payment gateway if you wish to pay using a subscription.'|trans }}`;
+                } else {
+                    document.getElementById('bodyText').textContent = `{{ 'If you are happy with the selected payment gateway, please use the button below to continue with it.'|trans }}`;
+                }
+                document.getElementById('subscription').hidden = true;
+            }
+        {% else %}
+            document.getElementById('bodyText').textContent = `{{ 'If you are happy with the selected payment gateway, please use the button below to continue with it.'|trans }}`;
+            document.getElementById('subscription').hidden = true;
+            document.getElementById('single').hidden = true;
+            document.getElementById('pay-nondescript').hidden = false;
+        {% endif %}
+
+        document.getElementById('paymentPromptLabel').textContent = `{{ 'Pay with'|trans }}`.concat(` `, title);
+        document.getElementById('subscription').href = paymentLink;
+        document.getElementById('pay-nondescript').href = paymentLink;
+        paymentLink.searchParams.append('allow_subscription', 0);
+        document.getElementById('single').href = paymentLink;
+
+        Kovil.showDialog(document.getElementById('paymentPrompt'));
+    }
+</script>
+{% endblock %}

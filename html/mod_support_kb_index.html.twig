@@ -1,0 +1,236 @@
+{% extends request.ajax ? "layout_blank.html.twig" : "layout_default.html.twig" %}
+{% set active_menu = 'kb' %}
+
+{% set search_query = request.q|default('')|trim %}
+
+{% if search_query %}
+    {% set kbcategories = guest.support_kb_category_get_list({
+        'q': search_query
+    }) %}
+    {% set kbarticles = guest.support_kb_article_get_list({
+        'search': search_query,
+        'per_page': 20
+    }) %}
+{% else %}
+    {% set kbcategories = guest.support_kb_category_get_list %}
+    {% set kbarticles = null %}
+{% endif %}
+
+{% set categories = kbcategories.list|default([]) %}
+{% set articles = kbarticles ? kbarticles.list|default([]) : [] %}
+
+{% block meta_title %}{{ 'Knowledge Base Categories'|trans }}{% endblock %}
+
+{% block meta_description %}
+    {{ 'Browse help articles, tutorials, and answers to common questions in our knowledge base.'|trans }}
+{% endblock %}
+
+{% block page_header %}
+    {{ 'Knowledge Base'|trans }}
+{% endblock %}
+
+{% block page_description %}
+    {{ 'Browse help articles, tutorials, and answers to common questions in our knowledge base.'|trans }}
+{% endblock %}
+
+{% block body_class %}kb-index{% endblock %}
+
+{% block breadcrumb %}
+    {% if search_query %}
+        <li class="breadcrumb-item">
+            <a href="{{ 'support/kb'|url }}">
+                {{ 'Knowledge Base'|trans }}
+            </a>
+        </li>
+        <li class="breadcrumb-item active" aria-current="page">
+            {{ search_query|truncate(45) }}
+        </li>
+    {% else %}
+        <li class="breadcrumb-item active" aria-current="page">
+            {{ 'Knowledge Base'|trans }}
+        </li>
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+
+    {# Search #}
+    <div class="card card-md mb-4">
+        <div class="card-body">
+            <form method="get"
+                  action="{{ 'support/kb'|url }}"
+                  role="search">
+
+                <label for="kb-search" class="form-label fw-semibold">
+                    {{ 'What are you looking for?'|trans }}
+                </label>
+
+                <div class="input-group input-group-lg">
+                    <input
+                        id="kb-search"
+                        class="form-control"
+                        type="search"
+                        name="q"
+                        value="{{ search_query }}"
+                        placeholder="{{ 'Search articles and categories...'|trans }}"
+                        autocomplete="off"
+                        required
+                    >
+
+                    <button class="btn btn-primary" type="submit">
+                        <i class="ti ti-search icon" aria-hidden="true"></i>
+                        <span class="d-none d-sm-inline">
+                            {{ 'Search'|trans }}
+                        </span>
+                    </button>
+                </div>
+            </form>
+
+            {% if search_query %}
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-3">
+                    <div class="small text-secondary">
+                        {{ 'Search results for'|trans }}
+                        <strong class="text-body">{{ search_query }}</strong>
+                    </div>
+
+                    <a href="{{ 'support/kb'|url }}"
+                       class="small text-decoration-none">
+                        {{ 'Browse all articles'|trans }}
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {# Matching articles #}
+    {% if search_query and articles is not empty %}
+        <section class="mb-4" aria-labelledby="kb-articles-heading">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <h2 class="h3 mb-0" id="kb-articles-heading">
+                    {{ 'Matching articles'|trans }}
+                </h2>
+                <span class="badge bg-primary-lt text-primary">
+                    {{ articles|length }}
+                </span>
+            </div>
+
+            <div class="card">
+                <div class="list-group list-group-flush">
+                    {% for article in articles %}
+                        <a
+                            class="list-group-item list-group-item-action d-flex align-items-center justify-content-between gap-3 py-3"
+                            href="{{ "support/kb/#{article.category.slug}/#{article.slug}"|url }}"
+                        >
+                            <span class="d-flex align-items-center gap-3">
+                                <span class="avatar avatar-sm bg-primary-lt text-primary flex-shrink-0">
+                                    <i class="ti ti-book icon" aria-hidden="true"></i>
+                                </span>
+                                <span class="fw-medium">
+                                    {{ article.title }}
+                                </span>
+                            </span>
+
+                            <i class="ti ti-chevron-right icon" aria-hidden="true"></i>
+                        </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+    {% endif %}
+
+    {# Categories #}
+    {% if categories is not empty %}
+        <section class="mb-4" aria-labelledby="kb-categories-heading">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <h2 class="h3 mb-0" id="kb-categories-heading">
+                    {% if search_query %}
+                        {{ 'Matching categories'|trans }}
+                    {% else %}
+                        {{ 'Knowledge Base Categories'|trans }}
+                    {% endif %}
+                </h2>
+            </div>
+
+            <div class="row row-cards">
+                {% for category in categories %}
+                    <div class="col-12 col-md-6 col-xl-4">
+                        <div class="card h-100">
+
+                            <div class="card-body">
+                                <h3 class="card-title mb-2">
+                                    <a
+                                        class="text-reset text-decoration-none"
+                                        href="{{ "support/kb/#{category.slug}"|url }}"
+                                    >
+                                        {{ category.title }}
+                                    </a>
+                                </h3>
+
+                                {% if category.description|default('') %}
+                                    <p class="text-secondary small mb-3">
+                                        {{ category.description }}
+                                    </p>
+                                {% endif %}
+
+                                {% if category.articles|default([]) is not empty %}
+                                    <div class="list-group list-group-flush border-top mt-3">
+                                        {% for article in category.articles|slice(0, 3) %}
+                                            <a
+                                                class="list-group-item list-group-item-action px-0 py-2"
+                                                href="{{ "support/kb/#{article.category.slug}/#{article.slug}"|url }}"
+                                            >
+                                                <span class="d-flex align-items-center justify-content-between gap-2">
+                                                    <span class="small">
+                                                        {{ article.title }}
+                                                    </span>
+                                                    <span class="text-secondary flex-shrink-0">
+                                                        &rsaquo;
+                                                    </span>
+                                                </span>
+                                            </a>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="card-footer bg-transparent">
+                                <a
+                                    href="{{ "support/kb/#{category.slug}"|url }}"
+                                    class="btn btn-link px-0 py-0"
+                                >
+                                    {{ 'View all articles'|trans }}
+                                    &rarr;
+                                </a>
+                            </div>
+
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+    {% endif %}
+
+    {# Empty state, only when neither articles nor categories exist #}
+    {% if categories is empty and articles is empty %}
+        <div class="card">
+            {% if search_query %}
+                {{ include('partial_empty_state.html.twig', {
+                    'title': 'No results found'|trans,
+                    'description': 'No articles or categories matched your search for:'|trans ~ ' ' ~ search_query,
+                    'action_url': 'support/kb'|url,
+                    'action_label': 'Browse all articles'|trans,
+                    'secondary_action_url': 'support/contact-us'|url,
+                    'secondary_action_label': 'Contact support'|trans
+                }) }}
+            {% else %}
+                {{ include('partial_empty_state.html.twig', {
+                    'title': 'No categories available yet'|trans,
+                    'description': 'Our Knowledge Base is currently empty. Please check back later or contact our support team for assistance.'|trans,
+                    'secondary_action_url': 'support/contact-us'|url,
+                    'secondary_action_label': 'Contact support'|trans
+                }) }}
+            {% endif %}
+        </div>
+    {% endif %}
+
+{% endblock %}

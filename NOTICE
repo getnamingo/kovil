@@ -1,0 +1,8 @@
+Kovil adapts source from the Tide 1.2.18 client-area theme by Namingo and
+the FOSSBilling 0.8.9 project. Templates and settings were adapted to the
+Kovil design and native browser controls. See LICENSE and LICENSE-MIT.
+
+Tabler Icons by Paweł Kuna and contributors and Geist by Vercel and
+basement.studio are included as local font subsets. Their license texts
+are in assets/fonts/. The bundled telephone input and Punycode helper
+carry their own license notices in assets/libs/.

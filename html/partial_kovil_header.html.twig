@@ -1,0 +1,134 @@
+{% import _self as nav %}
+{% macro link(path, text, icon, menus, active) %}
+    <a class="nav-item{{ active in menus ? ' is-active' : '' }}" href="{{ path|url }}"{% if active in menus %} aria-current="page"{% endif %}>
+        <i class="ti ti-{{ icon }}" aria-hidden="true"></i> {{ text }}
+    </a>
+{% endmacro %}
+{% macro option(path, text, icon) %}
+    <a href="{{ path|url }}"><i class="ti ti-{{ icon }}" aria-hidden="true"></i> {{ text }}</a>
+{% endmacro %}
+<a class="skip-link" href="#main-content">{{ 'Skip to content'|trans }}</a>
+{% if settings.announcement_bar_enabled|default('') and settings.announcement_bar_text|default('') %}
+    {% set banner_colors = {1: 'blue', 2: 'purple', 3: 'red', 4: 'orange', 5: 'yellow', 6: 'green'} %}
+    <div class="announcement d-print-none tone-{{ banner_colors[settings.announcement_bar_color|default(1)]|default('blue') }}">
+        <div class="shell">{{ settings.announcement_bar_text }}</div>
+    </div>
+{% endif %}
+<header class="masthead d-print-none">
+    {{ render_widgets('client.theme.header.start') }}
+    <div class="shell masthead-inner">
+        <a class="brand" href="{{ '/'|url }}" aria-label="{{ company.name }}">
+            {% if settings.show_company_logo|default('') and (company.logo_url or company.logo_url_dark) %}
+                <img class="responsive-logo" src="{{ company.logo_url|default(company.logo_url_dark) }}" alt="{{ company.name }}"
+                     data-logo-light="{{ company.logo_url }}" data-logo-dark="{{ company.logo_url_dark }}">
+                {% if settings.show_company_name|default('') %}<span class="brand-name">{{ company.name }}</span>{% endif %}
+            {% else %}
+                <span class="brand-mark"><i class="ti ti-topology-star-3" aria-hidden="true"></i></span>
+                <span class="brand-name">{{ company.name|default('Kovil') }}<span class="brand-period" aria-hidden="true">.</span></span>
+            {% endif %}
+        </a>
+        {% if client %}<span class="workspace-label">{{ 'Client Area'|trans }}</span>{% endif %}
+
+        <div class="masthead-actions">
+            {% set languages = guest.extension_languages(true) %}
+            {% if languages|length > 1 %}
+                <details class="dropdown align-end">
+                    <summary class="icon-button" aria-label="{{ 'Change language'|trans }}" title="{{ 'Change language'|trans }}"><i class="ti ti-language" aria-hidden="true"></i></summary>
+                    <div class="dropdown-panel">
+                        {% for language in languages %}
+                            {% set country = language.locale|replace({'-': '_'})|split('_')[1]|default('')|lower %}
+                            <button type="button" data-locale="{{ language.locale }}"{% if language.locale == guest.system_locale %} class="is-active" aria-current="true"{% endif %}>
+                                {% if country matches '/^[a-z]{2}$/' %}<img class="language-flag" src="{{ ('img/flags/' ~ country ~ '.svg')|asset_url }}" alt="" loading="lazy">{% endif %}
+                                {{ language.title }}
+                            </button>
+                        {% endfor %}
+                    </div>
+                </details>
+            {% endif %}
+
+            {% set orders = client ? client.order_get_list({'per_page': 1, 'page': 1, 'hide_addons': 1}) : {list: []} %}
+            {% if not orders.list %}
+                {% set currencies = guest.currency_get_pairs %}
+                {% if currencies|length > 1 %}
+                    {% set selected_currency = guest.cart_get_currency.code %}
+                    <details class="dropdown align-end">
+                        <summary class="icon-button" aria-label="{{ 'Change currency'|trans }}" title="{{ 'Change currency'|trans }}"><i class="ti ti-coins" aria-hidden="true"></i></summary>
+                        <div class="dropdown-panel">
+                            {% for code, title in currencies %}
+                                <button type="button" data-currency="{{ code }}"{% if code == selected_currency %} class="is-active" aria-current="true"{% endif %}>
+                                    <strong>{{ code }}</strong>{% if title and title != code %} {{ title }}{% endif %}
+                                </button>
+                            {% endfor %}
+                        </div>
+                    </details>
+                {% endif %}
+            {% endif %}
+
+            {% include 'partial_kovil_theme_toggle.html.twig' %}
+            {% set cart = guest.cart_get %}
+            <a class="icon-button cart-link" href="{{ 'orderbutton'|url({'checkout': 1}) }}" aria-label="{{ 'Cart'|trans }} ({{ cart.items|length }})" title="{{ 'Cart'|trans }}">
+                <i class="ti ti-shopping-cart" aria-hidden="true"></i>
+                {% if cart.items|length %}<span class="cart-count" aria-hidden="true">{{ cart.items|length }}</span>{% endif %}
+            </a>
+
+            <details class="dropdown align-end account">
+                <summary aria-label="{{ 'Open user menu'|trans }}">
+                    <span class="avatar"><i class="ti ti-user" aria-hidden="true"></i></span>
+                    <span class="account-name">
+                        {% if client %}{{ profile.first_name }} {{ profile.last_name }}<small>{{ 'My account'|trans }}</small>{% else %}{{ 'Account'|trans }}{% endif %}
+                    </span>
+                    <i class="ti ti-chevron-down caret" aria-hidden="true"></i>
+                </summary>
+                <div class="dropdown-panel">
+                    {% if client %}
+                        <div class="dropdown-caption">{{ profile.email }}</div>
+                        {% if settings.top_menu_profile|default('') %}{{ nav.option('client/profile', 'Profile'|trans, 'user') }}{% endif %}
+                        {% if guest.invoice_funds_enabled %}{{ nav.option('client/balance', 'Wallet'|trans, 'wallet') }}{% endif %}
+                        {{ nav.option('email', 'Emails'|trans, 'mail') }}
+                    {% else %}
+                        {% if settings.main_menu_login|default('1') %}{{ nav.option('login', 'Login'|trans, 'login') }}{% endif %}
+                        {% if settings.main_menu_register|default('1') and settings.show_signup_link|default('1') %}{{ nav.option('signup', 'Register'|trans, 'user-plus') }}{% endif %}
+                    {% endif %}
+                    <button type="button" data-reset-color-mode><i class="ti ti-device-desktop" aria-hidden="true"></i> {{ 'Reset color mode'|trans }}</button>
+                    {% if client and settings.top_menu_signout|default('') %}{{ nav.option('client/logout', 'Sign Out'|trans, 'logout') }}{% endif %}
+                </div>
+            </details>
+        </div>
+    </div>
+    {{ render_widgets('client.theme.header.end') }}
+</header>
+
+<nav class="navigation d-print-none" aria-label="{{ 'Main navigation'|trans }}">
+    <div class="shell nav-inner">
+        {% if settings.top_menu_dashboard|default('') and (client or settings.main_menu_home|default('1')) %}
+            {{ nav.link('/', client ? 'Dashboard'|trans : 'Home'|trans, 'layout-dashboard', ['dashboard'], current_active_menu) }}
+        {% endif %}
+        {% if client and settings.main_menu_services|default('1') %}
+            {{ nav.link('order/service', 'Services'|trans, 'server', ['services'], current_active_menu) }}
+        {% endif %}
+        {% if guest.extension_is_on({'mod': 'domains'}) %}
+            {{ nav.link('domains', 'Domains'|trans, 'world', ['domains'], current_active_menu) }}
+        {% endif %}
+        {% if settings.top_menu_order|default('') and settings.main_menu_order|default('1') %}
+            {{ nav.link('order', 'Order'|trans, 'shopping-bag', ['order'], current_active_menu) }}
+        {% endif %}
+        {% if client and settings.main_menu_invoices|default('1') %}
+            {{ nav.link('invoice', 'Invoices'|trans, 'receipt', ['invoices', 'invoice'], current_active_menu) }}
+        {% endif %}
+        {% set tickets_enabled = client ? settings.main_menu_tickets|default('1') : guest_support_url != 'login'|url %}
+        {% set kb_enabled = settings.main_menu_kb|default('1') and guest.support_kb_enabled() %}
+        {% set news_enabled = settings.main_menu_news|default('1') and guest.extension_is_on({'mod': 'news'}) %}
+        {% if settings.main_menu_support|default('1') and (tickets_enabled or kb_enabled or news_enabled) %}
+            <details class="dropdown nav-dropdown">
+                <summary class="nav-item{{ current_active_menu in ['support', 'kb', 'news'] ? ' is-active' : '' }}">
+                    <i class="ti ti-lifebuoy" aria-hidden="true"></i> {{ 'Support'|trans }} <i class="ti ti-chevron-down caret" aria-hidden="true"></i>
+                </summary>
+                <div class="dropdown-panel">
+                    {% if tickets_enabled %}{{ nav.option(client ? 'support' : 'support/contact-us', client ? 'Support Tickets'|trans : 'Contact us'|trans, 'ticket') }}{% endif %}
+                    {% if kb_enabled %}{{ nav.option('support/kb', 'Knowledge Base'|trans, 'book') }}{% endif %}
+                    {% if news_enabled %}{{ nav.option('news', 'Announcements'|trans, 'speakerphone') }}{% endif %}
+                </div>
+            </details>
+        {% endif %}
+    </div>
+</nav>

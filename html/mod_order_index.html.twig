@@ -1,0 +1,113 @@
+{% extends request.ajax ? "layout_blank.html.twig" : "layout_default.html.twig" %}
+{% set active_menu = 'order' %}
+{% set cart_currency = guest.cart_get_currency %}
+
+{% block meta_title %}{{ 'Order'|trans }}{% endblock %}
+{% block meta_description %}{{ 'Browse available products and services, compare options, and place your order online.'|trans }}{% endblock %}
+
+{% block page_header %}
+    {{ 'Order'|trans }}
+{% endblock %}
+
+{% set loader_nr = request.loader|default("8")%}
+{% set loader_url = ('img/assets/loaders/loader'~loader_nr~'.gif') %}
+
+{% block body_class %}order-index{% endblock %}
+{% block breadcrumb %}
+    <li class="active breadcrumb-item" aria-current="page">{{ 'Order'|trans }}</li>
+{% endblock %}
+{% block content_before %}{% endblock %}
+
+{% block content %}
+<div class="row row-deck row-cards">
+    {% set domain_products = guest.product_get_list({'type': 'domain'}) %}
+    {% set product = domain_products.list|first %}
+    {% if product and product.type == 'domain' %}
+    <div class="col-12">
+        <div class="card card-md">
+            <div class="card-body">
+                <form method="post" action="{{ 'cart/add_item'|api_url(role: 'guest') }}"
+                      {{ fb_api_form({message: 'Product Added to Shopping Cart'|trans, redirect: 'orderbutton'|url(query: {'checkout': 1})}) }}>
+                    {{ include('mod_servicedomain_order_form.html.twig', {'product': product}) }}
+                    <input type="hidden" name="multiple" value="1">
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div id="order-other-products" class="w-100" style="display: block;">
+        {% for i, category in guest.product_category_get_list.list|filter(c => c.products|filter(p => p.type != 'domain')|length > 0) %}
+        <div class="mb-4">
+            <h2>{{ category.title }}</h2>
+            <div>{{ category.description|default('', true)|markdown_to_html }}</div>
+            <div class="row row-cards">
+                   {% for i, product in category.products|filter(p => p.type != 'domain')|sort((a, b) => a.priority <=> b.priority) %}
+                   <div class="{% if loop.length == 1 %}col-12{% elseif loop.length == 2 %}col-12 col-md-6{% else %}col-12 col-md-6 col-lg-4{% endif %}">
+                      <div class="card card-md">
+                         {% if product.type == 'domain' %}
+                         <div class="ribbon ribbon-top ribbon-bookmark bg-green">
+                            <i class="ti ti-world icon" aria-hidden="true"></i>
+                         </div>
+                         {% elseif product.type == 'hosting' %}
+                         <div class="ribbon ribbon-top ribbon-bookmark bg-orange">
+                            <i class="ti ti-cloud icon" aria-hidden="true"></i>
+                         </div>
+                         {% elseif product.type == 'downloadable' %}
+                         <div class="ribbon ribbon-top ribbon-bookmark bg-indigo">
+                            <i class="ti ti-download icon" aria-hidden="true"></i>
+                         </div>
+                         {% elseif product.type == 'license' %}
+                         <div class="ribbon ribbon-top ribbon-bookmark bg-pink">
+                            <i class="ti ti-license icon" aria-hidden="true"></i>
+                         </div>
+                         {% elseif product.type == 'dns' %}
+                         <div class="ribbon ribbon-top ribbon-bookmark bg-azure">
+                            <i class="ti ti-server icon" aria-hidden="true"></i>
+                         </div>
+                         {% elseif product.type == 'ssl' %}
+                         <div class="ribbon ribbon-top ribbon-bookmark bg-purple">
+                            <i class="ti ti-shield-lock icon" aria-hidden="true"></i>
+                         </div>
+                         {% else %}
+                         <div class="ribbon ribbon-top ribbon-bookmark bg-cyan">
+                            <i class="ti ti-box icon" aria-hidden="true"></i>
+                         </div>
+                         {% endif %}
+                         <div class="card-body text-center">
+                            {% if product.icon_url is not empty %}
+                            <div class="mb-3 d-flex justify-content-center">
+                                <img src="{{ product.icon_url }}" alt="{{ product.title }}" style="max-height: 42px;" class="img-fluid">
+                            </div>
+                            {% endif %}
+                            {% if settings.show_product_type_names|default('1') %}
+                            <div class="text-uppercase text-muted font-weight-medium mb-4">{{ product.type }}</div>
+                            {% endif %}
+                            <h3>{{ product.title }}</h3>
+                            {% if product.type != 'domain' and product.price_starting_from is defined and product.price_starting_from is not empty %}
+                              <div class="h2 my-3">{{ (product.price_starting_from * cart_currency.conversion_rate)|format_currency(cart_currency.code) }}</div>
+                            {% endif %}
+                            <div class="text-center mt-4">
+                               <a href="{{ ('/order/' ~ product.slug) | url }}" class="btn {% if product.type == 'domain' %}btn-green{% elseif product.type == 'hosting' %}btn-orange{% elseif product.type == 'downloadable' %}btn-indigo{% elseif product.type == 'license' %}btn-pink{% elseif product.type == 'dns' %}btn-azure{% elseif product.type == 'ssl' %}btn-purple{% else %}btn-cyan{% endif %} w-100">{{ 'Choose'|trans }}</a>
+                            </div>
+                         </div>
+                      </div>
+                   </div>
+                   {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block js %}
+{% autoescape "js" %}
+<script>
+    function resizeIframe(obj) {
+        obj.style.height = obj.contentWindow.document.documentElement.scrollHeight + 'px';
+        document.getElementById('loader-image').style.display = 'none';
+    }
+</script>
+{% endautoescape %}
+{% endblock %}

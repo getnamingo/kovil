@@ -1,0 +1,246 @@
+{% extends request.ajax ? "layout_blank.html.twig" : "layout_default.html.twig" %}
+{% set active_menu = 'support' %}
+
+{% import "macro_functions.html.twig" as mf %}
+{% set is_guest_ticket = ticket.author.role|default('') == 'guest' %}
+{% set can_reply = ticket.status != 'closed' or (not is_guest_ticket and ticket.helpdesk.can_reopen) %}
+
+{% block meta_title %}{{ ticket.subject }}{% endblock %}
+
+{% block page_header %}
+    {{ 'Ticket'|trans }} #{{ ticket.id }}
+{% endblock %}
+
+{% block page_description %}
+    {{ ticket.subject }}
+{% endblock %}
+
+{% block page_actions %}
+    {% if can_reply %}
+        <button type="button" class="btn btn-primary d-none d-sm-inline-block text-nowrap js-ticket-reply">
+            <i class="ti ti-send icon" aria-hidden="true"></i>
+            {{ 'Reply'|trans }}
+        </button>
+        <button type="button" class="btn btn-icon btn-primary d-sm-none btn-icon text-nowrap js-ticket-reply" aria-label="{{ 'Reply'|trans }}">
+            <i class="ti ti-send icon" aria-hidden="true"></i>
+        </button>
+    {% endif %}
+
+    {% if ticket.status != 'closed' %}
+        <button type="button" class="btn btn-outline-secondary d-none d-sm-inline-block text-nowrap js-ticket-close">
+            <i class="ti ti-circle-check icon" aria-hidden="true"></i>
+            {{ 'Close Ticket'|trans }}
+        </button>
+        <button type="button" class="btn btn-icon btn-outline-secondary d-sm-none btn-icon text-nowrap js-ticket-close" aria-label="{{ 'Close Ticket'|trans }}">
+            <i class="ti ti-circle-check icon" aria-hidden="true"></i>
+        </button>
+    {% endif %}
+{% endblock %}
+
+{% block head %}
+
+    {{ wysiwyg('.editor-textarea') }}
+{% endblock %}
+
+{% block body_class %}support-ticket{% endblock %}
+{% block breadcrumb %}
+    {% if is_guest_ticket %}
+        <li class="breadcrumb-item"><a href="{{ 'support/contact-us'|url }}">{{ 'Contact Us'|trans }}</a></li>
+    {% else %}
+        <li class="breadcrumb-item"><a href="{{ 'support'|url }}">{{ 'Support Tickets'|trans }}</a></li>
+    {% endif %}
+    <li class="breadcrumb-item active" aria-current="page">{{ ticket.subject }}</li>
+{% endblock %}
+
+{% block content %}
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="datagrid">
+                      <div class="datagrid-item">
+                        <div class="datagrid-title">{{ 'Help Desk'|trans }}</div>
+                        <div class="datagrid-content">{{ ticket.helpdesk.name }}</div>
+                      </div>
+                      <div class="datagrid-item">
+                        <div class="datagrid-title">{{ 'Status'|trans }}</div>
+                        <div class="datagrid-content">{{ mf.status_badge(ticket.status, 'ticket') }}</div>
+                      </div>
+                      <div class="datagrid-item">
+                        <div class="datagrid-title">{{ 'Time Opened'|trans }}</div>
+                        <div class="datagrid-content">{{ ticket.created_at|format_date }}</div>
+                      </div>
+                      {% if ticket.rel_type|default('') == 'order' and ticket.rel_id %}
+                      <div class="datagrid-item">
+                        <div class="datagrid-title">{{ 'Related To'|trans }}</div>
+                        <div class="datagrid-content"><a href='{{ "order/service/manage/#{ticket.rel_id}"|url }}'>{{ 'Service #'|trans }} {{ ticket.rel_id }}</a></div>
+                      </div>
+                      {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="d-flex flex-column gap-3">
+            {% for i, message in ticket.messages %}
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card {% if message.author.role == 'admin' %}border-primary{% endif %}">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="avatar bg-green-lt">{{ message.author.name|slice(0, 2)|upper }}</span>
+                                    <div class="d-flex flex-column">
+                                        <span class="text-muted">
+                                            {{ message.author.name }}
+                                        </span>
+                                        {% if message.author.role == 'admin' %}
+                                            <span class="badge bg-primary text-primary-fg">
+                                                    {{ 'Operator'|trans }}
+                                                </span>
+                                        {% else %}
+                                            <span class="badge bg-secondary text-secondary-fg">
+                                                    {{ 'You'|trans }}
+                                                </span>
+                                        {% endif %}
+                                    </div>
+                                    <span class="text-muted fs-7">{{ 'on :date'|trans({':date': message.created_at|format_date}) }}</span>
+                                </div>
+                                {% if can_reply %}
+                                    <div class="d-flex gap-3 align-items-center">
+                                        <span class="text-muted fs-7">#{{ message.id }}</span>
+                                        <button class="btn btn-outline-secondary btn-quote-reply"
+                                                message-quote="{{ mf.markdown_quote(message.content) }}"
+                                                title="{{ 'Quote Reply'|trans }}">
+                                            <i class="ti ti-quote-filled svg-icon" aria-hidden="true"></i>
+                                        </button>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-12">
+                                        <article class="markdown-body bg-transparent text-reset" id="message-{{ message.id }}">
+                                            {{ (message.content ?? '')|markdown_to_html }}
+                                        </article>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        <div>
+            <div class="row">
+                <div class="col-md-12">
+                    {% if not can_reply %}
+                        <div class="mt-3 alert alert-secondary text-center">{{ 'Ticket was closed and cannot be reopened.'|trans }}</div>
+                    {% else %}
+                        {% if ticket.status == 'closed' %}
+                            <div class="mt-3 alert alert-secondary text-center">{{ 'This ticket was closed, but you can still reopen it by replying.'|trans }}</div>
+                        {% endif %}
+                        <div class="card mt-3" id="reply-to">
+                            <div class="card-body">
+                                <form id="ticket-reply-form">
+                                    {% if is_guest_ticket %}
+                                        <input type="hidden" name="hash" value="{{ ticket.hash }}">
+                                    {% else %}
+                                        <input type="hidden" name="id" value="{{ ticket.id }}">
+                                    {% endif %}
+                                    <textarea name="content" cols="5" rows="10" class="editor-textarea form-control" required="required"
+                                              id="ticket-reply-text"></textarea>
+                                    <button class="mt-2 btn btn-primary" type="submit" id="post-reply-btn"
+                                            value="{{ 'Post'|trans }}"
+                                            onclick="">{{ 'Post'|trans }}</button>
+                                </form>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block js %}
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const ticketReplyForm = document.getElementById('ticket-reply-form');
+            const postReplyBtn = document.getElementById('post-reply-btn');
+            const replyToMessageBtn = document.querySelectorAll('.btn-quote-reply');
+            const ticketReplyTextArea = document.getElementById('ticket-reply-text');
+            const supportApi = FOSSBilling.api.{{ is_guest_ticket ? 'guest' : 'client' }};
+
+            ticketReplyForm?.addEventListener('submit', (e) => {
+                e.preventDefault();
+                supportApi.post('support/ticket_reply', FOSSBilling.tools.serializeFormDataToObject(new FormData(ticketReplyForm)),
+                    () => {
+                        flashMessage({
+                            message: 'Posted reply',
+                            reload: true
+                        });
+                    },
+                    (res) => FOSSBilling.message(`${res.message} (${res.code})`, 'error')
+                )
+            });
+
+            document.querySelectorAll('.js-ticket-close').forEach((btn) => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    toggleLoader();
+                    supportApi.post('support/ticket_close', FOSSBilling.tools.serializeFormDataToObject(new FormData(ticketReplyForm)),
+                        () => {
+                            flashMessage({
+                                message: 'Closed ticket #{{ ticket.id }}',
+                                reload: true
+                            });
+                        },
+                        (res) => FOSSBilling.message(`${res.message} (${res.code})`, 'error')
+                    );
+                });
+            });
+
+            postReplyBtn?.addEventListener('click', () => {
+                if (document.getElementById('ticket-reply-text').value.length > 0) {
+                    toggleLoader();
+                }
+            });
+
+            replyToMessageBtn.forEach((reply) => {
+                reply.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    let quote = e.currentTarget.getAttribute('message-quote');
+                    quote = quote.replace(/^\s*$(?:\r\n?|\n)/gm, '');
+                    if (ticketReplyTextArea.editor) {
+                        ticketReplyTextArea.editor.setData(quote);
+                        ticketReplyTextArea.editor.focus();
+                    } else {
+                        ticketReplyTextArea.textContent = quote;
+                        ticketReplyTextArea.focus();
+                    }
+                });
+            })
+
+            document.querySelectorAll('.js-ticket-reply').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    if (ticketReplyTextArea.editor) {
+                        ticketReplyTextArea.editor.focus();
+                    } else {
+                        ticketReplyTextArea.focus();
+                    }
+                });
+            });
+
+            const toggleLoader = () => {
+                let loader = document.querySelector('.wait');
+                if (!loader) {
+                    return;
+                }
+                if (loader.style.display === 'none') {
+                    loader.style.display = 'block';
+                } else {
+                    loader.style.display = 'none';
+                }
+            }
+        });
+    </script>
+{% endblock %}

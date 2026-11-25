@@ -1,0 +1,54 @@
+{% extends "layout_public.html.twig" %}
+
+{% set company = guest.system_company|default({}) %}
+
+{% block meta_title %}{{ 'Login'|trans }}{% endblock %}
+{% block meta_description %}{{ 'Log in to manage your services, invoices, support tickets, and account details.'|trans }}{% endblock %}
+
+{% block body_class %}page-login{% endblock %}
+{% block body %}
+    <div class="page page-center">
+      <div class="container container-tight py-4">
+        {% if settings.login_page_show_logo|default('') %}
+            {% include 'partial_kovil_auth_brand.html.twig' %}
+        {% endif %}
+        <div class="card card-md">
+          <div class="card-body">
+            <h1 class="auth-title text-center mb-4">{{ 'Login to your account'|trans }}</h1>
+            {{ render_widgets('client.page.login.form.before') }}
+            <form class="api-form auth" method="post" action="{{ 'client/login'|api_url(role='guest') }}" {{ fb_api_form({ redirect: redirect_uri|default('/')|url }) }}>
+              <input type="hidden" name="CSRFToken" value="{{ CSRFToken }}">
+              <div class="mb-3">
+                <label class="form-label" for="login-email">{{ 'Email'|trans }}</label>
+                <input type="email" id="login-email" class="form-control" placeholder="{{ 'Enter your email address'|trans }}" name="email" value="{{ request.email }}" required="required" autofocus autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"/>
+              </div>
+              <div class="mb-2">
+                <label class="form-label" for="password-input">
+                  {{ 'Password'|trans }}
+                  {% if settings.show_password_reset_link|default('') %}
+                  <span class="form-label-description">
+                    <a href="{{ 'password-reset'|url }}">{{ 'Forgot password?'|trans }}</a>
+                  </span>
+                  {% endif %}
+                </label>
+                <div class="input-group input-group-flat">
+                  <input type="password" id="password-input" class="form-control" placeholder="{{ 'Enter your password'|trans }}" name="password" required="required" autocomplete="current-password" />
+                  <span class="input-group-text">
+                    <button type="button" class="password-toggle" data-password-toggle
+                      data-show="{{ 'Show password'|trans }}" data-hide="{{ 'Hide password'|trans }}" aria-label="{{ 'Show password'|trans }}"><i class="ti ti-eye" aria-hidden="true"></i></button>
+                  </span>
+                </div>
+              </div>
+              <div class="form-footer">
+                <button type="submit" class="btn btn-primary w-100">{{ 'Login'|trans }}</button>
+              </div>
+            </form>
+            {{ render_widgets('client.page.login.form.after') }}
+          </div>
+        </div>
+        {% if settings.show_signup_link|default('') %}
+        <div class="text-center text-secondary mt-3">{{ 'Don’t have an account yet?'|trans }} <a href="{{ 'signup'|url }}" tabindex="-1">{{ 'Create account'|trans }}</a></div>
+        {% endif %}
+      </div>
+    </div>
+{% endblock %}

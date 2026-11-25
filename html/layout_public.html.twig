@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+{% set active_locale = guest.system_locale|default('en')|replace({'_': '-'}) %}
+{% set canonical_url = guest.system_current_url|url %}
+{% set company = guest.system_company %}
+{% set public_logo_url = company.logo_url %}
+{% set public_dark_logo_url = company.logo_url_dark %}
+{% set page_title = (settings.meta_title_prefix|default('') ~ ' ' ~ block('meta_title') ~ ' ' ~ settings.meta_title_suffix|default(''))|trim %}
+{% set meta_description = block('meta_description')|default(settings.meta_description|default('')) %}
+{% set colors = {1: 'blue', 2: 'purple', 3: 'pink', 4: 'red', 5: 'orange', 6: 'yellow', 7: 'green', 8: 'teal', 9: 'indigo'} %}
+<html lang="{{ active_locale }}"{% if active_locale|split('-')|first in ['ar', 'fa', 'he', 'ur'] %} dir="rtl"{% endif %} data-theme="{{ settings.theme|default('system') }}"{% if settings.theme_color_enabled|default('') %} data-accent="{{ colors[settings.theme_color]|default('lime') }}"{% endif %}>
+<head>
+    <meta charset="utf-8">
+    <title>{{ page_title }}</title>
+
+    <meta name="description" content="{% block meta_description %}{{ settings.meta_description|default('') }}{% endblock %}">
+    <meta name="keywords" content="{{ settings.meta_keywords|default('') }}">
+    <meta name="robots" content="{{ settings.meta_robots|default('') }}">
+    <meta name="author" content="{{ settings.meta_author|default('') }}">
+    <meta name="generator" content="FOSSBilling">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    {% block canonical %}
+        <link rel="canonical" href="{{ canonical_url }}">
+    {% endblock %}
+
+    {% block opengraph %}
+        <meta property="og:title" content="{{ page_title }}" />
+        <meta property="og:type" content="website" />
+        <meta property="og:description" content="{{ meta_description }}" />
+        <meta property="og:url" content="{{ canonical_url }}" />
+        <meta property="og:site_name" content="{{ guest.system_company.name }}" />
+    {% endblock %}
+
+    {% include 'partial_kovil_assets.html.twig' %}
+    {% include 'custom/head.extra.twig' ignore missing %}
+
+    <link rel="shortcut icon" href="{{ guest.system_company.favicon_url }}">
+
+    {{ 'js/fossbilling.js' | public_asset_url | script_tag }}
+    {{ 'js/api.js' | public_asset_url | script_tag }}
+    {% block head %}{% endblock %}
+    {% block js %}{% endblock %}
+</head>
+
+<body id="top" data-table-label="{{ 'Scrollable table'|trans }}" class="{% block body_class %}{% endblock %}">
+    {{ render_widgets('client.theme.body.start') }}
+    <div class="public-tools d-print-none">
+        {% include 'partial_kovil_theme_toggle.html.twig' %}
+    </div>
+    {% block body %}{% endblock %}
+    <div class="toast-container" data-close-label="{{ 'Close'|trans }}" aria-live="polite" aria-relevant="additions"></div>
+    {{ include('partial_pending_messages.html.twig', ignore_missing: true) }}
+    {{ render_widgets('client.theme.body.end') }}
+</body>
+</html>

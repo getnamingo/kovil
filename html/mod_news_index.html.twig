@@ -1,0 +1,113 @@
+{% extends request.ajax ? "layout_blank.html.twig" : "layout_default.html.twig" %}
+{% set active_menu = 'news' %}
+
+{% block meta_title %}
+    {{ 'Announcements'|trans }}
+{% endblock %}
+
+{% block meta_description %}
+    {{ 'Track our latest information.'|trans }}
+{% endblock %}
+
+{% block page_header %}
+    {{ 'Announcements'|trans }}
+{% endblock %}
+
+{% block page_description %}
+    {{ 'Track our latest information.'|trans }}
+{% endblock %}
+
+{% block body_class %}news-index{% endblock %}
+
+{% block breadcrumb %}
+    <li class="breadcrumb-item active" aria-current="page">
+        {{ 'Announcements'|trans }}
+    </li>
+{% endblock %}
+
+{% block content %}
+
+    {% set posts = guest.news_get_list({
+        'page': request.page|default(1),
+        'per_page': 5
+    }) %}
+
+    {% if posts.list|default([]) is not empty %}
+
+        <div class="card mb-4">
+            <div class="list-group list-group-flush">
+
+                {% for post in posts.list %}
+                    <a
+                        href="{{ "news/#{post.slug}"|url }}"
+                        class="list-group-item list-group-item-action py-4"
+                    >
+                        <div class="d-flex align-items-start gap-3">
+
+                            {# Announcement icon #}
+                            <span class="avatar avatar-md bg-primary-lt text-primary flex-shrink-0">
+                                <i class="ti ti-speakerphone icon" aria-hidden="true"></i>
+                            </span>
+
+                            <div class="flex-fill text-break">
+
+                                {# Title #}
+                                <h2 class="h3 mb-1">
+                                    {{ post.title }}
+                                </h2>
+
+                                {# Date #}
+                                <div class="text-secondary small mb-2">
+                                    <i class="ti ti-calendar-event icon" aria-hidden="true"></i>
+                                    {{ post.updated_at|format_datetime }}
+                                </div>
+
+                                {# Excerpt #}
+                                {% set preview = post.excerpt|default('', true)
+                                    ?: post.content|default('') %}
+
+                                {% if preview|trim %}
+                                    <p class="text-secondary mb-2">
+                                        {{ preview|markdown_to_html|striptags|trim|truncate(200) }}
+                                    </p>
+                                {% endif %}
+
+                                {# Read more #}
+                                <span class="text-primary fw-medium small">
+                                    {{ 'Continue reading'|trans }}
+                                    <i class="ti ti-arrow-right icon" aria-hidden="true"></i>
+                                </span>
+                            </div>
+
+                            <i class="ti ti-chevron-right icon text-secondary d-none d-sm-block mt-2 flex-shrink-0" aria-hidden="true"></i>
+
+                        </div>
+                    </a>
+                {% endfor %}
+
+            </div>
+
+            {# Pagination #}
+            {% if posts.pages|default(1) > 1 %}
+                <div class="card-footer d-flex justify-content-end">
+                    {{ include('partial_pagination.html.twig', {
+                        'list': posts,
+                        'url': 'news'
+                    }) }}
+                </div>
+            {% endif %}
+        </div>
+
+    {% else %}
+
+        {# Reusable empty state #}
+        <div class="card mb-4">
+            {{ include('partial_empty_state.html.twig', {
+                'title': 'No news or announcements'|trans,
+                'description': 'There are currently no announcements to display. Please check back later.'|trans
+            }) }}
+        </div>
+
+    {% endif %}
+
+{% endblock %}

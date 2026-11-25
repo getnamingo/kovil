@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+{% set active_locale = guest.system_locale|default('en')|replace({'_': '-'}) %}
+{% set canonical_url = guest.system_current_url|url %}
+{% set current_active_menu = active_menu|default('') %}
+{% set page_title = block('meta_title')|trim %}
+{% set title_prefix = settings.meta_title_prefix|default('')|trim %}
+{% set title_suffix = settings.meta_title_suffix|default('')|trim %}
+{% set colors = {1: 'blue', 2: 'purple', 3: 'pink', 4: 'red', 5: 'orange', 6: 'yellow', 7: 'green', 8: 'teal', 9: 'indigo'} %}
+<html lang="{{ active_locale }}"{% if active_locale|split('-')|first in ['ar', 'fa', 'he', 'ur'] %} dir="rtl"{% endif %} data-theme="{{ settings.theme|default('system') }}"{% if settings.theme_color_enabled|default('') %} data-accent="{{ colors[settings.theme_color]|default('lime') }}"{% endif %}>
+<head>
+    <meta charset="utf-8">
+    <title>{{ [title_prefix, page_title, title_suffix]|filter(v => v is not empty)|join(' ') }}</title>
+
+    <meta name="description" content="{% block meta_description %}{{ settings.meta_description|default('') }}{% endblock %}">
+    <meta name="keywords" content="{{ settings.meta_keywords|default('') }}">
+    <meta name="robots" content="{{ settings.meta_robots|default('') }}">
+    <meta name="author" content="{{ settings.meta_author|default('') }}">
+    <meta name="generator" content="FOSSBilling">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    {% block canonical %}
+        <link rel="canonical" href="{{ canonical_url }}">
+    {% endblock %}
+
+    {% block opengraph %}
+        <meta property="og:title" content="{{ [title_prefix, page_title, title_suffix]|filter(v => v is not empty)|join(' ') }}" />
+        <meta property="og:type" content="website" />
+        <meta property="og:description" content="{{ block('meta_description') }}" />
+        <meta property="og:url" content="{{ canonical_url }}" />
+        <meta property="og:site_name" content="{{ guest.system_company.name }}" />
+    {% endblock %}
+    {% include 'partial_kovil_assets.html.twig' %}
+    {% include 'custom/head.extra.twig' ignore missing %}
+
+    <link rel="shortcut icon" href="{{ guest.system_company.favicon_url }}">
+
+    {{ 'js/fossbilling.js' | public_asset_url | script_tag }}
+    {{ 'js/api.js' | public_asset_url | script_tag }}
+
+    {{ debug_bar_render_head() }}
+
+    {% block head %}{% endblock %}
+    {% block js %}{% endblock %}
+
+    {% if settings.inject_head|default('') %} 
+        {{ settings.inject_head|default('')|raw }}
+    {% endif %}
+</head>
+
+<body id="top" data-table-label="{{ 'Scrollable table'|trans }}" class="{% block body_class %}{% endblock %}">
+
+{{ render_widgets('client.theme.body.start') }}
+
+{% block body %}
+{% if not client and settings.require_login and exception is not defined %}
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const publicPages = [{{ 'news'|url|json_encode|raw }}, {{ 'tos'|url|json_encode|raw }}, {{ 'privacy-policy'|url|json_encode|raw }}];
+            {% if guest.support_guest_tickets_enabled() %}
+            publicPages.push({{ 'support/contact-us'|url|json_encode|raw }}, {{ 'support/ticket'|url|json_encode|raw }});
+            {% endif %}
+            const currentPath = window.location.pathname;
+            const isAllowed = publicPages.some(page => {
+                const path = new URL(page, window.location.href).pathname.replace(/\/$/, '');
+                return currentPath === path || currentPath.startsWith(path + '/');
+            });
+            if (!isAllowed) {
+                window.location.replace({{ 'login'|url|json_encode|raw }});
+            }
+        });
+    </script>
+{% endif %}
+
+{% if client and profile is not defined %}
+    {% set profile = client.profile_get %}
+{% endif %}
+{% set company = guest.system_company %}
+{% set guest_support_url = guest.support_guest_tickets_enabled() ? 'support/contact-us'|url : 'login'|url %}
+{% set support_url = client ? 'support'|url : guest_support_url %}
+
+<div class="page">
+    {% include 'partial_kovil_header.html.twig' %}
+
+    <div class="page-wrapper">
+        <main id="main-content" tabindex="-1">
+        {% set heading %}{% block page_header %}{% endblock %}{% endset %}
+        {% set description %}{% block page_description %}{% endblock %}{% endset %}
+        {% set actions %}{% block page_actions %}{% endblock %}{% endset %}
+
+        {% set breadcrumb_count = block('breadcrumbs')|split('<li')|length - 1 %}
+        {% set show_breadcrumbs = settings.show_breadcrumb|default('') and (current_active_menu != 'dashboard' or not settings.hide_dashboard_breadcrumb|default('')) and breadcrumb_count > 1 %}
+        {% set heading = heading|trim %}
+        {% set description = description|trim %}
+        {% set actions = actions|trim %}
+
+        {% if show_breadcrumbs or heading or description or actions %}
+        <div class="page-header d-print-none" aria-label="Page header">
+            <div class="container-xl">
+
+                {% if show_breadcrumbs %}
+                <div class="mb-1">
+                    {% block breadcrumbs %}
+                    <ol class="breadcrumb breadcrumb-muted breadcrumb-arrows" aria-label="{{ 'breadcrumb'|trans }}">
+                        <li class="breadcrumb-item">
+                            <a href="{{ '/'|url }}">{{ 'Home'|trans }}</a>
+                        </li>
+                        {% block breadcrumb %}
+                        <li class="breadcrumb-item active" aria-current="page">
+                            {{ 'Dashboard'|trans }}
+                        </li>
+                        {% endblock %}
+                    </ol>
+                    {% endblock %}
+                </div>
+                {% endif %}
+
+                {% if heading or description or actions %}
+                <div class="row g-2 align-items-center mw-100">
+                    {% if heading or description %}
+                    <div class="col">
+                        {% if heading %}
+                        <h1 class="page-section-title">{{ heading|raw }}{% if current_active_menu != 'services' %}<span class="heading-period" aria-hidden="true">.</span>{% endif %}</h1>
+                        {% endif %}
+
+                        {% if description %}
+                        <p class="page-section-description mb-0">
+                            {{ description|raw }}
+                        </p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if actions %}
+                    <div class="col-auto">
+                        <div class="btn-list">
+                            {{ actions|raw }}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="page-body">
+          <div class="container-xl">
+            {% block content_before %}{% endblock %}
+
+            {{ render_widgets('client.theme.content.before') }}
+            {% block content %}{% endblock %}
+            {{ render_widgets('client.theme.content.after') }}
+
+            {{ include('partial_message.html.twig') }}
+
+            {% block content_after %}{% endblock %}
+            <div id="push"></div>
+          </div>
+        </div>
+        
+        </main>
+
+        {% if settings.footer_enabled|default('') %}
+        <footer class="footer footer-transparent d-print-none">
+          <div class="container-xl">
+            <div class="footer-inner">
+              <div class="footer-links">
+                <ul class="list-inline list-inline-dots mb-0">
+                  {% for i in 1..5 %}
+                    {% set enabled_key = 'footer_link_' ~ i ~ '_enabled' %}
+                    {% set page_key = 'footer_link_' ~ i ~ '_page' %}
+                    {% set title_key = 'footer_link_' ~ i ~ '_title' %}
+                    {% set link_enabled = attribute(settings, enabled_key) is defined ? attribute(settings, enabled_key) : false %}
+                    {% if link_enabled %}
+                        {% set link_page = attribute(settings, page_key)|default('') %}
+                        {% set link_title = attribute(settings, title_key)|default('') %}
+                        <li class="list-inline-item">
+                        {% if 'http://' in link_page or 'https://' in link_page %}
+                            <a href="{{ link_page }}" class="link-secondary">{{ link_title }}</a>
+                        {% else %}
+                            <a href="{{ link_page|url }}" class="link-secondary">{{ link_title }}</a>
+                        {% endif %}
+                        </li>
+                    {% endif %}
+                  {% endfor %}
+                  {% if settings.footer_to_top_enabled|default('') %}
+                    <li><a href="#top" class="link-secondary">{{ 'Back to top'|trans }} <i class="ti ti-arrow-up" aria-hidden="true"></i></a></li>
+                  {% endif %}
+                </ul>
+              </div>
+              <div class="footer-signature">
+                {{ render_widgets('client.theme.footer.start') }}
+                <ul class="list-inline list-inline-dots mb-0">
+                  <li class="list-inline-item">
+                    &copy; {{ 'now'|date('Y') }} {{ settings.footer_signature | default(company.signature|default(company.name)) }}
+                    {% if company.bank_info_pagebottom|default(0) == 1 %}
+                        <br/>
+                        <b>{{'Payment Information'|trans}}</b> - {{'Bank Name'|trans}}: {{ company.bank_name|default('') }} | {{'BIC / SWIFT Code'|trans}}: {{ company.bic|default('') }} | {{'Account Number'|trans}}: {{ company.account_number|default('') }}
+                    {% endif %}
+                  </li>
+                </ul>
+              </div>
+            </div>
+            {{ render_widgets('client.theme.footer.end') }}
+          </div>
+        </footer>
+        {% endif %}
+        <div class="toast-container" data-close-label="{{ 'Close'|trans }}" aria-live="polite" aria-relevant="additions"></div>
+        {% if not settings.footer_enabled|default('') and settings.footer_to_top_enabled|default('') %}
+            <a href="#top" class="btn btn-outline-secondary back-to-top d-print-none">
+                <i class="ti ti-arrow-up icon" aria-hidden="true"></i> {{ 'Top'|trans }}</a>
+        {% endif %}
+        <div class="wait" style="display:none" onclick="this.style.display = 'none';">
+            <div class="spinner-border"
+                 style="width: 4rem; height: 4rem; top: 50%; left: 50%; position: fixed; z-index: 999"></div>
+        </div>
+        <noscript>{{ "NOTE: Many features on FOSSBilling require Javascript and cookies. You can enable both in your browser's preference settings."|trans }}</noscript>
+
+        {% endblock %}
+
+        {% if settings.inject_javascript|default('') %}
+            {{ settings.inject_javascript|default('')|raw }}
+        {% endif %}
+        {{ include('partial_pending_messages.html.twig', ignore_missing: true) }}
+        {% if guest.extension_is_on({ "mod": "cookieconsent" }) %}
+            {{ include('mod_cookieconsent_index.html.twig', ignore_missing: true) }}
+        {% endif %}
+    </div>
+</div>
+{{ render_widgets('client.theme.body.end') }}
+{{ debug_bar_render() }}
+</body>
+</html>

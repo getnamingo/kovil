@@ -1,0 +1,9 @@
+<a href="{{ settings.login_page_logo_url|default('/'|url) }}" class="brand auth-brand mb-4" aria-label="{{ company.name|default('Kovil') }}">
+    {% if company.logo_url or company.logo_url_dark %}
+        <img class="responsive-logo" src="{{ company.logo_url|default(company.logo_url_dark) }}" alt="{{ company.name }}"
+             data-logo-light="{{ company.logo_url }}" data-logo-dark="{{ company.logo_url_dark }}">
+    {% else %}
+        <span class="brand-mark"><i class="ti ti-topology-star-3" aria-hidden="true"></i></span>
+        <span class="brand-name">{{ company.name|default('Kovil') }}<span class="brand-period" aria-hidden="true">.</span></span>
+    {% endif %}
+</a>

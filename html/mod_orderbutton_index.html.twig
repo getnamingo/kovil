@@ -1,0 +1,759 @@
+{% extends request.ajax ? "layout_blank.html.twig" : "layout_default.html.twig" %}
+{% set active_menu = 'order' %}
+
+{% import "macro_functions.html.twig" as mf %}
+
+{% set loader_nr = request.loader | default("8")%}
+{% set loader_url = ('img/assets/loaders/loader'~loader_nr~'.gif') %}
+{% set product = request.order ? guest.product_get({"id":request.order}) : null %}
+{% set cart_currency = guest.cart_get_currency %}
+{% if product is not defined or not product %}
+    {% set product = request.product ? guest.product_get({"id":request.product}) : null %}
+{% endif %}
+
+{% set product_type = product.type|default('custom') %}
+
+{% set product_type_labels = {
+    'domain': 'Domains'|trans,
+    'hosting': 'Web Hosting'|trans,
+    'vps': 'VPS Hosting'|trans,
+    'license': 'Software Licenses'|trans,
+    'downloadable': 'Downloads'|trans,
+    'addon': 'Add-ons'|trans,
+    'custom': 'Services'|trans
+} %}
+
+{% set product_type_label = product_type_labels[product_type]|default('Services'|trans) %}
+
+{% if product_type == 'domain' %}
+    {% set product_page_title = 'Find your domain'|trans %}
+{% else %}
+    {% set product_page_title = product.title|default(product_type_label) %}
+{% endif %}
+
+{% block meta_title %}
+    {% if request.order matches '/^\\d+$/' %}
+        {% if product_type == 'domain' %}
+            {{ 'Find your domain'|trans }}
+        {% else %}
+            {{ product.title|default(product_type_label) }} - {{ product_type_label }}
+        {% endif %}
+
+    {% elseif request.checkout matches '/^\\d+$/' %}
+        {{ 'Cart'|trans }}
+
+    {% else %}
+        {{ 'Products'|trans }}
+    {% endif %}
+{% endblock %}
+
+
+{% block page_header %}
+    {% if request.order matches '/^\\d+$/' %}
+        {{ product_page_title }}
+        {% if product_type != 'domain' %}
+            <span class="badge bg-primary-lt text-primary ms-2">
+                {{ product_type_label }}
+            </span>
+        {% endif %}
+    {% elseif request.checkout matches '/^\\d+$/' %}
+        {{ 'Cart'|trans }}
+    {% endif %}
+{% endblock %}
+
+{% block page_description %}
+    {% if request.order matches '/^\\d+$/' %}
+        {% if product_type == 'domain' %}
+            {{ 'Search for a new domain or transfer one you already own.'|trans }}
+        {% else %}
+            {{ 'Choose your billing cycle and available options.'|trans }}
+        {% endif %}
+    {% endif %}
+{% endblock %}
+
+{% block body_class %}order-index{% endblock %}
+{% block breadcrumb %}
+        <li class="breadcrumb-item">
+            <a href="{{ 'order'|url }}">
+                {{ 'Order'|trans }}
+            </a>
+        </li>
+
+    {% if request.order matches '/^\\d+$/' %}
+        <li class="breadcrumb-item active" aria-current="page">
+            {{ product_page_title }}
+        </li>
+
+    {% elseif request.checkout matches '/^\\d+$/' %}
+        <li class="breadcrumb-item active" aria-current="page">
+            {{ 'Cart'|trans }}
+        </li>
+    {% endif %}
+{% endblock %}
+{% block content_before %}{% endblock %}
+
+{% block content %}
+{% if request.order matches '/^\\d+$/' %}
+<div class="row row-deck row-cards mb-3">
+   <div class="col-md-12">
+      <div class="card card-md">
+         <div class="card-body">
+            {% if product %}
+            {% set add_item_redirect = 'orderbutton'|url({ 'checkout' : 1 }) ~ (request.show_custom_form_values ? '&show_custom_form_values=1' : '') %}
+            <form method="post" action="{{ 'cart/add_item'|api_url(role: 'guest') }}" style="background:none;" class="form-{{ product.form_id ? guest.formbuilder_get( {"id":product.form_id}).style.type : 0 }}" {{ fb_api_form({message: 'Product Added to Shopping Cart'|trans, redirect: ('orderbutton'|url(query: { 'checkout' : 1 }) ~ (request.show_custom_form_values ? '&show_custom_form_values=1' : ''))}) }}>
+                {% set product_details %}
+                <div class="card card-borderless bg-primary-lt mb-4">
+                  <div class="card-body">
+                    <h3 class="card-title">{{ product.title }} <div class="card-subtitle">{% if product.description %}{{ (product.description ?? '')|markdown_to_html }}{% endif %}</div></h3>
+                        <h5><strong>{{ 'Billing'|trans }}</strong></h5>
+                        <div class="row">
+                            <div class="col-12 col-md-4 col-xl-3">
+                                {% if product.pricing.type is defined and product.pricing.type == 'recurrent' %}
+                                <span>{{ 'Billing cycle'|trans }}</span>
+                                {% else %}
+                                <span>{{ 'One-time payment'|trans }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="col">
+                                {% if product.pricing.type is defined and product.pricing.type == 'recurrent' %}
+                                {% set periods = guest.system_periods %}
+                                <select class="form-select" name="period" id="period-selector">
+                                    {% for code,prices in product.pricing.recurrent %}
+                                        {% if prices.enabled %}
+                                            <option value="{{ code }}"{% if request.period == code %} selected="selected"{% endif %}>{{ (prices.price * cart_currency.conversion_rate)|format_currency(cart_currency.code) }} ({{ periods[code] }})</option>
+                                        {% endif %}
+                                    {% endfor %}
+                                </select>
+                                {% elseif product.pricing.type is defined and product.pricing.type == 'free' %}
+                                <span class="badge bg-success text-success-fg">{{ 0|format_currency(cart_currency.code) }}</span>
+                                {% else %}
+                                    {% if product.pricing.once is defined and product.pricing.once.price is defined %}
+                                        <span class="badge bg-success text-success-fg">{{ (product.pricing.once.price * cart_currency.conversion_rate)|format_currency(cart_currency.code) }}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary text-secondary-fg">-</span>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                        {# TODO: This does not seem to be implemented on the back-end
+                        {% if product.allow_quantity_select %}
+                        <div class="row mt-3">
+                            <div class="col-12 col-md-4 col-xl-3">
+                                <span>{{ 'Quantity'|trans }}</span>
+                            </div>
+                            <div class="col">
+                                <input type="number" name="quantity" value="1" min="1" class="form-control w-50" style="max-width: 120px; text-align: center;">
+                            </div>
+                        </div>
+                        {% endif %}
+                        #}
+                  </div>
+                </div>
+                {% endset %}
+
+                {% set tpl = "mod_service"~product.type~"_order_form.html.twig" %}
+                {% if guest.system_template_exists({"file":tpl}) %}
+                    {{ include(tpl, product) }}
+                {% elseif product.form_id and guest.extension_is_on({"mod":"formbuilder"}) %}
+                    {{ product_details }}
+                    {% set form = guest.formbuilder_get({"id":product.form_id}) %}
+                    {{ include('mod_formbuilder_build.html.twig', product) }}
+                {% else %}
+                    {{ product_details }}
+                {% endif %}
+
+                {{ include('mod_orderbutton_addons.html.twig', product) }}
+
+                <input type="hidden" name="multiple" value="1" />
+                <input type="hidden" name="id" value="{{ product.id }}" />
+                <div class="mt-2 mb-0">
+                    <button type="submit" class="btn btn-primary" id="config-next">{{ 'Next'|trans }}</button>
+                </div>
+            </form>
+            {% endif %}
+         </div>
+      </div>
+   </div>
+</div>
+{% endif %}
+{% if request.checkout matches '/^\\d+$/' %}
+{% set cart = guest.cart_get%}
+{% set registration_domains = cart.items|filter(i => i.type == 'domain' and (i.action ?? '') == 'register') %}
+{% if client %}
+<div class="row row-deck row-cards mb-3">
+   <div class="col-md-12">
+      <div class="card">
+         <div class="card-body">
+            {% if cart.items %}
+            <div id="checkout">
+               <div class="table-responsive" id="checkout-inner">
+                  <table class="table table-striped table-bordered table-condensed">
+                     <thead>
+                        <tr>
+                           <th>{{ 'Product'|trans }}</th>
+                           <th>{{ 'Price'|trans }}</th>
+                           <th style="width: 3%; text-align: center"></th>
+                        </tr>
+                     </thead>
+                     <tbody>
+                        {% for i, item in cart.items %}
+                        <tr>
+                           <td>
+                              {{ item.title }}
+                              {% if item.quantity > 1 %}
+                              x {{ item.quantity }}
+                              {% endif %}
+                              {% if item.period|default(false) %}
+                              ({{ item.period | period_title }})
+                              {% endif %}
+                           </td>
+                           <td>
+                              {% if item.discount_price %}
+                              <del>{{ (item.total * cart_currency.conversion_rate)|format_currency(cart_currency.code) }}</del>
+                              <strong class="text-success">{{ ((item.total-item.discount_price) * cart_currency.conversion_rate)|format_currency(cart_currency.code) }}</strong>
+                              {% else %}
+                              {{ (item.total * cart_currency.conversion_rate)|format_currency(cart_currency.code) }}
+                              {% endif %}
+                           </td>
+                           <td>
+                               <a class="btn btn-outline-danger btn-icon" title="{{ 'Remove item'|trans }}"
+                                  {{ fb_api_link({href: 'cart/remove_item'|api_url(query: {id: item.id}, role: 'guest'), modal: {type: 'confirm', title: 'Are you sure?'|trans, content: 'Are you sure you want to remove this item from cart?'|trans}, reload: true}) }}>
+                                 <i class="ti ti-square-x icon" aria-hidden="true"></i>
+                               </a>
+                           </td>
+                        </tr>
+                        {% if request.show_custom_form_values %}
+                        <tr>
+                           <td>
+                              {% if item.form_id and guest.extension_is_on({"mod":"formbuilder"}) %}
+                              {% set form = guest.formbuilder_get({"id": item.form_id}) %}
+                              {# debug form #}
+                              <div class="well">
+                                 <dl class="dl-horizontal">
+                                    {% for field, value in item %}
+                                    {% for form_field in form.fields %}
+                                    {% if value is not empty %}
+                                    {% if form_field.name == field%}
+                                    <dt>
+                                       {{form_field.label}}
+                                    </dt>
+                                    <dd>
+                                       {% if form_field.type == "checkbox"%}
+                                       {% for selection in value %}
+                                       {% for field_key,field_value in form_field.options%}
+                                       {% if field_value == selection %}
+                                       {{ field_key }}
+                                       {% endif %}
+                                       {% endfor %}
+                                       {% endfor%}
+                                       {% elseif form_field.type == "select" or form_field.type == "radio" %}
+                                       {% for field_key,field_value in form_field.options%}
+                                       {% if field_value == value %}
+                                       {{ field_key }}
+                                       {% endif %}
+                                       {% endfor %}
+                                       {% else %}
+                                       {{value}}
+                                       {% endif %}
+                                    </dd>
+                                    {% endif %}
+                                    {% endif %}
+                                    {% endfor %}
+                                    {% endfor %}
+                                 </dl>
+                              </div>
+                              {% endif %}
+                           </td>
+                           <td></td>
+                        </tr>
+                        {% endif %}
+                        {% if item.setup_price != 0 %}
+                        <tr>
+                           <td>{{ item.title }} {{ 'setup'|trans }}</td>
+                           <td>
+                              {% if item.discount_setup %}
+                              <del>{{ (item.setup_price * cart_currency.conversion_rate)|format_currency(cart_currency.code) }}</del>
+                              {{ ((item.setup_price - item.discount_setup) * cart_currency.conversion_rate)|format_currency(cart_currency.code) }}
+                              {% else %}
+                              {{ (item.setup_price * cart_currency.conversion_rate)|format_currency(cart_currency.code) }}
+                           </td>
+                           {% endif %}
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                     </tbody>
+                  </table>
+               </div>
+               {% if not cart.promocode %}
+               <div class="mb-3 mt-3">
+                  <a href="#" id="show-promo-field">{{ 'Have a coupon code?'|trans }}</a>
+               </div>
+               {% endif %}
+               <form method="post" action="{{ 'cart/apply_promo'|api_url(role: 'guest') }}" {{ fb_api_form({message: 'Promo Code Applied to Order'|trans, reload: true}) }} {% if not cart.promocode %}style="display:none"{% endif %} id="apply-promo">
+                    <div class="mb-3">
+                        <div class="row">
+                            <div class="col-8 col-md-8">
+                                <input class="form-control" type="text" name="promocode" id="promocode" value="{{ request.promocode|default(cart.promocode) }}" {% if promo|default({}).required|default(false) %}required="required"{% endif %} placeholder="{{ 'Enter code'|trans }}">
+                            </div>
+                            <div class="col-4 col-md-4">
+                                {% if cart.promocode %}
+                                    <a class="btn btn-warning btn-sm mb-1" href="{{ 'cart/remove_promo'|api_url(role: 'guest') }}" type="button" {{ fb_api_link({reload: true}) }}><i class="ti ti-gift-off icon" aria-hidden="true"></i> {{ 'Remove'|trans }}</a>
+                                {% else %}
+                                    <button class="btn btn-secondary mb-1" type="submit">
+                                    <i class="ti ti-gift icon" aria-hidden="true"></i>
+                                    {{ 'Apply'|trans }}</button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+               </form>
+               <div class="table-responsive">
+                  <table class="table table-bordered table-striped">
+                     {% if cart.discount >0 %}
+                     <tr>
+                        <td><strong>{{ 'Subtotal:'|trans }}</strong></td>
+                        <td><strong>{{ (cart.subtotal * cart_currency.conversion_rate)|format_currency(cart_currency.code) }}</strong></td>
+                     </tr>
+                     <tr>
+                        <td><strong>{{ 'Discount:'|trans }}</strong></td>
+                        <td><strong>- {{ (cart.discount * cart_currency.conversion_rate)|format_currency(cart_currency.code) }}</strong></td>
+                     </tr>
+                     {% endif %}
+                     {% set tax_amount = 0 %}
+                     {% if client.client_is_taxable %}
+                     {% set tax_rate = client.invoice_get_tax_rate %}
+                     {% set tax_amount = cart.total * tax_rate / 100 %}
+                     <tr>
+                        <td><strong>{{ 'VAT'|trans }} ({{ tax_rate }}%) :</strong></td>
+                        <td><strong>{{ (tax_amount * cart_currency.conversion_rate)|format_currency(cart_currency.code) }}</strong></td>
+                     </tr>
+                     {% endif %}
+                     <tr>
+                        <td><strong>{{ 'Total:'|trans }}</strong></td>
+                        <td><strong>{{ ((cart.total + tax_amount) * cart_currency.conversion_rate)|format_currency(cart_currency.code) }}</strong></td>
+                     </tr>
+                  </table>
+               </div>
+               <form method="post" action="{{ 'cart/checkout'|api_url }}" {{ fb_api_form({callback: 'onOrderCheckout'}) }}>
+                  {% if registration_domains|length > 0 %}
+                  {% set registration_domain = registration_domains|first %}
+                  {% set has_custom_ns =
+                      (registration_domain.ns1 ?? '')|trim or
+                      (registration_domain.ns2 ?? '')|trim or
+                      (registration_domain.ns3 ?? '')|trim or
+                      (registration_domain.ns4 ?? '')|trim
+                  %}
+                  <div class="row g-3 mt-1">
+                     <div class="col-12 col-lg-6">
+                        <div class="card h-100">
+                           <div class="card-body">
+                              <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                                 <div>
+                                    <h3 class="card-title mb-1">{{ 'Registrant contact'|trans }}</h3>
+                                    <div class="text-muted small">{{ 'These details will be used for your new domain registration.'|trans }}</div>
+                                 </div>
+                                 {% if profile is defined and profile and (profile.id ?? 0) %}
+                                 <a href="{{ 'client/profile'|url }}" target="_blank" class="btn btn-sm btn-outline-primary text-nowrap">
+                                    {{ 'Update profile'|trans }}
+                                 </a>
+                                 {% endif %}
+                              </div>
+
+                              {% if profile is defined and profile and (profile.id ?? 0) %}
+                              <div class="d-flex flex-column gap-2">
+                                 <div class="fw-semibold">
+                                    {{ ((profile.first_name ?? '') ~ ' ' ~ (profile.last_name ?? ''))|trim ?: '---' }}
+                                    {% set doc = (profile.document_nr ?? '')|trim %}
+                                    {% if doc %}
+                                    <span class="text-muted small fw-normal">({{ 'ID'|trans }}: {{ doc }})</span>
+                                    {% endif %}
+                                 </div>
+
+                                 {% set company = (profile.company ?? '')|trim %}
+                                 {% set companyNr = (profile.company_number ?? '')|trim %}
+                                 {% if company or companyNr %}
+                                 <div>
+                                    {{ company ?: '---' }}
+                                    {% if companyNr %}<span class="text-muted small">({{ 'No.'|trans }} {{ companyNr }})</span>{% endif %}
+                                 </div>
+                                 {% endif %}
+
+                                 <div class="row g-2">
+                                    <div class="col-sm-6">
+                                       <div class="text-muted small">{{ 'Email'|trans }}</div>
+                                       <div>{{ (profile.email ?? '')|trim ?: '---' }}</div>
+                                    </div>
+                                    <div class="col-sm-6">
+                                       <div class="text-muted small">{{ 'Phone'|trans }}</div>
+                                       {% set phone = (profile.phone ?? '')|trim %}
+                                       {% set cc = (profile.phone_cc ?? '')|trim %}
+                                       <div>{{ phone ? ('+' ~ (cc ?: '') ~ ' ' ~ phone)|trim : '---' }}</div>
+                                    </div>
+                                 </div>
+
+                                 <div>
+                                    <div class="text-muted small">{{ 'Address'|trans }}</div>
+                                    {% set a1 = (profile.address_1 ?? '')|trim %}
+                                    {% set a2 = (profile.address_2 ?? '')|trim %}
+                                    {% set city = (profile.city ?? '')|trim %}
+                                    {% set state = (profile.state ?? '')|trim %}
+                                    {% set pc = (profile.postcode ?? '')|trim %}
+                                    {% set country = (profile.country ?? '')|trim %}
+                                    <div class="small">
+                                       <div>{{ a1 ?: '---' }}</div>
+                                       {% if a2 %}<div>{{ a2 }}</div>{% endif %}
+                                       <div>{{ [pc, city]|filter(v => v is not empty)|join(' ') ?: '---' }}{% if state %}, {{ state }}{% endif %}</div>
+                                       {% if country %}<div>{{ country }}</div>{% endif %}
+                                    </div>
+                                 </div>
+                              </div>
+                              {% else %}
+                              <div class="text-muted">{{ 'Your current client profile will be used for the registration.'|trans }}</div>
+                              {% endif %}
+                           </div>
+                        </div>
+                     </div>
+
+                     <div class="col-12 col-lg-6">
+                        <div class="card h-100">
+                           <div class="card-body">
+                              <h3 class="card-title mb-1">{{ 'Nameservers'|trans }}</h3>
+                              <div class="text-muted small mb-3">{{ 'This choice applies to all new domain registrations in this cart.'|trans }}</div>
+
+                              <select class="form-select" id="checkout-ns-mode" name="domain_ns_mode">
+                                 <option value="default"{% if not has_custom_ns %} selected{% endif %}>{{ 'Default nameservers'|trans }}</option>
+                                 <option value="custom"{% if has_custom_ns %} selected{% endif %}>{{ 'Custom nameservers'|trans }}</option>
+                              </select>
+
+                              <div id="checkout-ns-default-hint" class="text-muted mt-3">
+                                 {{ 'We will use the default nameservers. You can change them later from your client area.'|trans }}
+                              </div>
+
+                              <div id="checkout-ns-custom-fields" class="mt-3 d-none">
+                                 <div class="row g-2">
+                                    <div class="col-12 col-md-6">
+                                       <input type="text" class="form-control" name="domain_ns1" value="{{ registration_domain.ns1 ?? '' }}" placeholder="{{ 'Nameserver 1'|trans }}" autocapitalize="off">
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                       <input type="text" class="form-control" name="domain_ns2" value="{{ registration_domain.ns2 ?? '' }}" placeholder="{{ 'Nameserver 2'|trans }}" autocapitalize="off">
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                       <input type="text" class="form-control" name="domain_ns3" value="{{ registration_domain.ns3 ?? '' }}" placeholder="{{ 'Nameserver 3'|trans }}" autocapitalize="off">
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                       <input type="text" class="form-control" name="domain_ns4" value="{{ registration_domain.ns4 ?? '' }}" placeholder="{{ 'Nameserver 4'|trans }}" autocapitalize="off">
+                                    </div>
+                                 </div>
+                              </div>
+                           </div>
+                        </div>
+                     </div>
+                  </div>
+                  {% endif %}
+
+                  <div class="card mt-3">
+                    <div class="card-body">
+                      {% set agreement_checkboxes %}
+                      <div class="form-check mt-3">
+                        <input class="form-check-input" type="checkbox" id="agreeTerms" name="agree_terms" required>
+                        <label class="form-check-label" for="agreeTerms">
+                          {{ 'I agree to our Terms and Conditions and acknowledge our Privacy Policy.'|trans }}
+                        </label>
+                      </div>
+                      {% set has_ge = cart.items|filter(i => i.type == 'domain' and (i.register_tld == '.ge' or i.transfer_tld == '.ge'))|length > 0 %}
+                      {% set has_lv = cart.items|filter(i => i.type == 'domain' and (((i.register_tld|default('')|lower) ends with '.lv') or ((i.transfer_tld|default('')|lower) ends with '.lv')))|length > 0 %}
+                      {% if has_lv %}
+                      <div class="form-check mt-3">
+                        <input class="form-check-input" type="checkbox" id="agreeLv" name="agree_lv_policy" required>
+                        <label class="form-check-label" for="agreeLv">
+                          I have read and agree to the
+                          <a href="https://www.nic.lv/en/policy" target="_blank" rel="noopener">NIC.LV Policy for acquisition of the right to use domain names under .LV</a>,
+                          the <a href="https://www.nic.lv/en/lv-domain-name-dispute-resolution-policy" target="_blank" rel="noopener">.LV Domain Name Dispute Resolution Policy</a>,
+                          and the <a href="https://www.nic.lv/en/rules-for-lv-domain-name-dispute-resolution-policy" target="_blank" rel="noopener">Rules for .LV Domain Name Dispute Resolution Policy</a>.
+                        </label>
+                      </div>
+                      {% endif %}
+                      {% if has_ge %}
+                      <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" id="agreeGe" name="agree_ge_policy" required>
+                        <label class="form-check-label" for="agreeGe">
+                          I agree to the <a href="https://nic.ge/_cdn/f/24/38/SLIPhFp7p0acMj1jVbr5Hw/2025.08.07.Domain_Regulation_Amendments_ENG_%20V.5.0_FINAL.pdf" target="_blank" rel="noopener">.GE Domain Registration and Administration Rules</a>
+                          and acknowledge the <a href="https://nic.ge/_cdn/f/11/70/gZLIa2Apr0WNkPiC9LhCQg/Privacy_%20Policy_%20ENG.pdf" target="_blank" rel="noopener">.GE Privacy Policy</a>.
+                        </label>
+                      </div>
+                      {% endif %}
+                      {% endset %}
+
+                      <div class="mt-2 small">
+                        <div class="mt-3">
+                          <div class="card card-sm mb-2 border">
+                            <div class="card-body d-flex align-items-center justify-content-between">
+                              <div class="d-flex align-items-center">
+                                <span class="avatar avatar-sm bg-blue-lt me-3">
+                                  <i class="ti ti-file-description icon" aria-hidden="true"></i>
+                                </span>
+
+                                <div>
+                                  <div class="fw-semibold">Terms and Conditions</div>
+                                </div>
+                              </div>
+
+                              <a href="tos"
+                                 target="_blank" rel="noopener"
+                                 class="btn btn-sm btn-outline-primary">
+                                {{ 'View'|trans }}
+                              </a>
+                            </div>
+                          </div>
+
+                          <div class="card card-sm mb-2 border">
+                            <div class="card-body d-flex align-items-center justify-content-between">
+                              <div class="d-flex align-items-center">
+                                <span class="avatar avatar-sm bg-green-lt me-3">
+                                  <i class="ti ti-shield-lock icon" aria-hidden="true"></i>
+                                </span>
+
+                                <div>
+                                  <div class="fw-semibold">Privacy Policy</div>
+                                </div>
+                              </div>
+
+                              <a href="privacy-policy"
+                                 target="_blank" rel="noopener"
+                                 class="btn btn-sm btn-outline-primary">
+                                {{ 'View'|trans }}
+                              </a>
+                            </div>
+                          </div>
+
+                          {% if settings.registrant_information is defined and settings.registrant_information %}
+                          <div class="card card-sm border">
+                            <div class="card-body d-flex align-items-center justify-content-between">
+                              <div class="d-flex align-items-center">
+                                <span class="avatar avatar-sm bg-orange-lt me-3">
+                                  <i class="ti ti-info-circle icon" aria-hidden="true"></i>
+                                </span>
+
+                                <div>
+                                  <div class="fw-semibold">Information for Registrants</div>
+                                </div>
+                              </div>
+
+                              <a href="{{ settings.registrant_information }}"
+                                 target="_blank" rel="noopener"
+                                 class="btn btn-sm btn-outline-primary">
+                                {{ 'View'|trans }}
+                              </a>
+                            </div>
+                          </div>
+                          {% endif %}
+
+                        </div>
+
+                        <div id="agreeTermsHelp" class="text-danger d-none">
+                          {{ 'You must agree before you can proceed.'|trans }}
+                        </div>
+                      </div>
+                      {{ agreement_checkboxes }}
+                    </div>
+                  </div>
+                  <script>
+                  document.addEventListener('DOMContentLoaded', function () {
+                      const button = document.getElementById('checkoutBtn');
+                      const checkboxes = document.querySelectorAll(
+                          '#checkout input[type="checkbox"][required]'
+                      );
+
+                      if (!button) return;
+
+                      const updateCheckout = () => {
+                            button.disabled = [...checkboxes].some(cb => !cb.checked);
+                      };
+
+                      checkboxes.forEach(cb => cb.addEventListener('change', updateCheckout));
+                      updateCheckout();
+                  });
+                  </script>
+
+                  <fieldset class="form-fieldset mt-3">
+                     {% set enough_in_balance = client.client_balance_get_total >= cart.total %}
+                     {% if cart.total and not enough_in_balance %}
+                     <div class="mb-3">
+                        <div class="form-label">Payment Options</div>
+                        <div>
+                           {% set gateway_selected = false %}
+                           {% for gtw in guest.invoice_gateways %}
+                           {% if cart.currency.code in gtw.accepted_currencies and (gtw.allow_single or (cart.subscribable|default(false) and gtw.allow_recurrent)) %}
+                           <label class="form-check form-check-inline">
+                               <input class="form-check-input" type="radio" 
+                               name="gateway_id" id={{gtw.id}} value="{{gtw.id}}" {{ not gateway_selected ? 'checked' : '' }}>
+                               <span class="form-check-label">{{ 'Pay by'|trans }} {{ gtw.title }}</span>
+                           </label>
+                           {% set gateway_selected = true %}
+                           {% endif %}
+                           {% endfor %}
+                        </div>
+                     </div>
+                     {% endif %}
+                     <div class="mb-3">
+                        {% if enough_in_balance %}
+                        <p>{{ 'Total amount will be deducted from account balance'|trans }}</p>
+                        {% endif %}
+                        <button class="btn btn-primary" type="submit" id="checkoutBtn">
+                           <i class="ti ti-shopping-cart icon" aria-hidden="true"></i>
+                           {{ 'Checkout'|trans }}
+                        </button>
+                     </div>
+                  </fieldset>
+               </form>
+            </div>
+            <div id="payment-html">
+               <div id="payment-html-inner"></div>
+            </div>
+            {% else %}
+                {{ include('partial_empty_state.html.twig', {
+                    'title': 'No items found'|trans,
+                    'description': 'Your Shopping Cart is Empty.'|trans
+                }) }}
+            {% endif %}
+         </div>
+      </div>
+   </div>
+</div>
+{% else %}
+    {% if cart.items %}
+    <div class="card card-sm mb-3">
+        <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                <div class="fw-semibold">{{ 'Your shopping cart'|trans }} <span class="text-secondary fw-normal">({{ cart.items|length }})</span></div>
+                <div class="fw-semibold">{{ (cart.total * cart_currency.conversion_rate)|format_currency(cart_currency.code) }}</div>
+            </div>
+            <div class="d-flex flex-column gap-1">
+                {% for item in cart.items|slice(0, 3) %}
+                <div class="small">
+                    {{ item.title }}
+                    {% if item.quantity > 1 %}<span class="text-secondary">× {{ item.quantity }}</span>{% endif %}
+                    {% if item.period|default(false) %}<span class="text-secondary">({{ item.period|period_title }})</span>{% endif %}
+                </div>
+                {% endfor %}
+                {% if cart.items|length > 3 %}
+                <div class="small text-secondary">+{{ cart.items|length - 3 }} {{ 'more items'|trans }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="alert alert-info mb-3" role="status">
+        {{ 'Log in or create an account to complete your order.'|trans }}
+    </div>
+    {% include 'mod_orderbutton_client.html.twig' %}
+    {% else %}
+    <div class="card">
+        {{ include('partial_empty_state.html.twig', {
+            'title': 'No items found'|trans,
+            'description': 'Your Shopping Cart is Empty.'|trans,
+            'action_url': 'order'|url,
+            'action_label': 'Browse products'|trans
+        }) }}
+    </div>
+    {% endif %}
+{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block js %}
+{% if request.order|default('') == '1' %}
+<script>window.location.replace("{{ 'order'|url }}");</script>
+{% endif %}
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const nsMode = document.getElementById('checkout-ns-mode');
+        const nsHint = document.getElementById('checkout-ns-default-hint');
+        const nsFields = document.getElementById('checkout-ns-custom-fields');
+
+        if (nsMode && nsHint && nsFields) {
+            const nsInputs = nsFields.querySelectorAll('input[name^="domain_ns"]');
+            const setNsMode = (value) => {
+                const custom = value === 'custom';
+                nsHint.classList.toggle('d-none', custom);
+                nsFields.classList.toggle('d-none', !custom);
+
+                nsInputs.forEach((input, index) => {
+                    input.disabled = !custom;
+                    input.required = custom && index < 2;
+                    if (!custom) input.value = '';
+                });
+            };
+
+            nsMode.addEventListener('change', (e) => setNsMode(e.target.value));
+            setNsMode(nsMode.value);
+        }
+
+        document.querySelectorAll('.accordion-body').forEach(accordionBody => {
+            accordionBody.addEventListener('kovil:expanded', function() {
+                const frame = document.getElementById('popup-iframe');
+                if (frame) frame.height = document.body.clientHeight;
+            });
+        });
+
+        document.getElementById('show-promo-field')?.addEventListener('click', function() {
+            document.getElementById('apply-promo').style.display = 'block';
+            this.style.display = 'none';
+            document.getElementById('promocode')?.focus();
+        });
+
+        document.querySelectorAll('.register-login a').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                Kovil.selectTab(this);
+            });
+        });
+
+    });
+
+    function onOrderCheckout(result){
+        if (result.invoice_hash) {
+            FOSSBilling.api.guest.post('invoice/payment', { hash: result.invoice_hash, gateway_id: result.gateway_id, auto_redirect: true },
+                (r) => {
+                    let checkoutEl = document.getElementById('checkout');
+                    let paymentHtmlEl = document.getElementById('payment-html');
+                    if (r.iframe) {
+                        document.getElementById('payment-html-inner').innerHTML = r.result;
+                        Kovil.setExpanded(checkoutEl, false);
+                        if (checkoutEl) {
+                            checkoutEl.remove();
+                        }
+                        Kovil.setExpanded(paymentHtmlEl, true);
+                    } else {
+                        const link = '{{ "invoice/banklink"|url }}' + '/' + result.invoice_hash + '/' + result.gateway_id;
+                        document.getElementById('payment-html-inner').innerHTML = '<a href="' + link + '" target="_parent" id="redirect-to-gateway">Redirect to Payment Gateway</a>';
+                        Kovil.setExpanded(checkoutEl, false);
+                        document.getElementById('checkout-inner').remove();
+                        Kovil.setExpanded(paymentHtmlEl, true);
+                        document.getElementById('redirect-to-gateway').click();
+                    }
+                },
+                (error) => FOSSBilling.message(`${error.message} (${error.code})`, 'error'));
+        } else {
+            window.top.location.href = ('{{ "order/service/manage"|url }}' + '/' + result.order_id);
+        }
+    }
+
+    function onLogin(result){
+        FOSSBilling.message("{{ 'You logged in successfully'|trans }}");
+        window.location.href = "{{ 'orderbutton'|url({ 'checkout': 1 }) }}";
+    }
+
+    function onAccountCreate(result){
+        const login_details = {
+            email: document.getElementById('reg-email').value,
+            password: document.getElementById('reg-password').value
+        };
+        FOSSBilling.api.guest.post('client/login', login_details,
+            () => {
+                FOSSBilling.message("{{ 'You logged in successfully'|trans }}");
+                window.location.href = "{{ 'orderbutton'|url({ 'checkout': 1 }) }}";
+            },
+            (error) => FOSSBilling.message(`${error.message} (${error.code})`, 'error'));
+    }
+</script>
+{% endblock %}
